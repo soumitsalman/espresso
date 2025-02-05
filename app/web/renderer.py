@@ -2,12 +2,10 @@ from contextlib import contextmanager
 import random
 import threading
 from typing import Callable
-from app.pybeansack.utils import *
-from app.pybeansack.datamodels import *
+from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.messages import *
-from app.shared.datamodel import *
-from app.shared import beanops, espressops
+from app.shared import beanops
 from urllib.parse import urlencode
 from nicegui import ui, background_tasks, run
 from icecream import ic
@@ -63,7 +61,7 @@ def create_navigation_target(base_url: str, **kwargs) -> str:
 def create_navigation_func(base_url, **kwargs):
     return lambda base_url=base_url, kwargs=kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
 
-def create_barista_navigate_func(barista: espressops.Barista):
+def create_barista_navigate_func(barista: Barista):
     return lambda barista=barista: ui.navigate.to(f"/baristas/{barista.id}")
 
 def create_search_target(text):
@@ -120,7 +118,7 @@ def render_user(user: User):
                 ui.label(user.name)
             ui.separator()
                         
-            if espressops.db.get_barista(user.email):
+            if beanops.db.get_barista(user.email):
                 with ui.menu_item(on_click=create_navigation_func("/baristas/"+user.email)):
                     ui.icon("bookmarks", size="md").classes("q-mr-md")
                     with ui.label("Bookmarks"):
@@ -142,7 +140,7 @@ def render_barista_names(user: User, baristas: list[Barista]):
     return panel
 
 def render_navigation_panel(user: User):    
-    baristas = espressops.db.get_baristas(user.following if user else espressops.DEFAULT_BARISTAS)
+    baristas = beanops.get_baristas(user)
     with ui.list().classes("w-full p-0 m-0 rounded-borders") as panel:
         ui.item("Following" if user else "Popular Baristas", on_click=create_navigation_func("/baristas")).classes("text-h6")
         ui.separator()
@@ -274,7 +272,7 @@ def render_bean_tags(user: User, bean: Bean):
 
 def render_bean_source(user: User, bean: Bean):
     with ui.row(wrap=False, align_items="center").classes("gap-2") as view:        
-        ui.icon("img:"+beanops.favicon(bean))
+        ui.icon("img:"+ favicon(bean))
         ui.link(bean.source, bean.url, new_tab=True).classes("ellipsis-30").on("click", lambda : log("opened", user_id=user_id(user), url=bean.url))
     return view
 
@@ -282,12 +280,12 @@ def render_bean_actions(user: User, bean: Bean):
     share_text = f"{bean.summary}\n\n{bean.url}"  
     
     def toggle_bookmark():
-        if espressops.db.is_bookmarked(user, bean.url):
+        if beanops.db.is_bookmarked(user, bean.url):
             log("unbookmarked", user_id=user_id(user), url=bean.url)
-            espressops.db.unbookmark(user, bean.url)            
+            beanops.db.unbookmark(user, bean.url)            
         else:
             log("bookmarked", user_id=user_id(user), url=bean.url)
-            espressops.db.bookmark(user, bean.url)
+            beanops.db.bookmark(user, bean.url)
     
     def share_func(target: str):
         return lambda: [
@@ -309,7 +307,7 @@ def render_bean_actions(user: User, bean: Bean):
                     # share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
         if user:
             SwitchButton(
-                espressops.db.is_bookmarked(user, bean.url), 
+                beanops.db.is_bookmarked(user, bean.url), 
                 unswitched_text=None, switched_text=None, 
                 unswitched_icon="bookmark_outlined", switched_icon="bookmark", 
                 on_click=toggle_bookmark,

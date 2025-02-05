@@ -41,11 +41,13 @@ DEFAULT_BARISTAS = [
 ]
 
 db: Beansack = None
-embedder: Embeddings = None
+# embedder = None
 
-def initiatize(db_conn, db_name: str, embedding_generator: Embeddings):
-    global db, embedder
-    embedder = embedding_generator
+def initiatize(db_conn: str, db_name: str = "beansack", embedder_path: str = None):
+    global db
+    # if embedder_path:
+    #     from sentence_transformers import SentenceTransformer
+    #     embedder = SentenceTransformer(embedder_path)
     db = Beansack(db_conn, db_name)
 
 @cached(max_size=1, ttl=ONE_WEEK)
@@ -121,7 +123,7 @@ def get_tags(urls: list[str], query: str, embedding: list[float], accuracy: floa
     #     bean = db.beanstore.find_one(filter={K_URL: query}, projection={K_EMBEDDING: 1, K_URL: 1, K_ID: 0})
     #     return db.vector_search_tags(embedding=bean[K_EMBEDDING], min_score=accuracy, beans_in_scope=filter, exclude_from_result=must_have_tags, skip=start, limit=limit) if bean else []
     if query:
-        return db.vector_search_tags(embedding=embed(query), min_score=accuracy, beans_in_scope=filter, exclude_from_result=must_have_tags, skip=start, limit=limit)  
+        return db.text_search_tags(query=query, beans_in_scope=filter, exclude_from_result=must_have_tags, skip=start, limit=limit)  
     return db.get_tags(beans_in_scope=_add_url_filter(filter, urls), exclude_from_result=must_have_tags, skip=start, limit=limit)
     
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
@@ -133,8 +135,15 @@ def count_beans(query: str, embedding: list[float], accuracy: float, tags: str|l
     #     bean = db.beanstore.find_one(filter={K_URL: query}, projection={K_EMBEDDING: 1, K_URL: 1, K_ID: 0})
     #     return db.count_vector_search_beans(embedding=bean[K_EMBEDDING], min_score=accuracy, filter=filter, limit=limit) if bean else 0
     if query:
-        return db.count_vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, limit=limit)
+        return db.count_text_search_beans(query=query, filter=filter, limit=limit)
     return db.count_unique_beans(filter=filter, limit=limit)
+
+# @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
+def get_baristas(user: User|str|None):
+    return db.get_baristas(user.following if user else DEFAULT_BARISTAS, projection=None)
+
+def get_barista_recommendations(user: User|str|None):
+    return db.sample_baristas(5)
 
 def _add_url_filter(filter: dict, urls: str|list[str]):
     if isinstance(urls, list): filter[K_URL] = {"$in": urls}
@@ -175,10 +184,10 @@ def _create_filter(
         filter[K_URL] = {"$ne": ignore_url}
     return filter
 
-# this is done for caching
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-def embed(query: str) -> list[float]:
-    return embedder.embed(query)
+# # this is done for caching
+# @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+# def embed(query: str) -> list[float]:
+#     return embedder.embed(query)
 
 lower_case = lambda items: {"$in": [item.lower() for item in items]} if isinstance(items, list) else items.lower()
 case_insensitive = lambda items: {"$in": [re.compile(item, re.IGNORECASE) for item in items]} if isinstance(items, list) else re.compile(items, re.IGNORECASE)

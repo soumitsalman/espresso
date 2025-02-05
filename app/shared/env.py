@@ -2,6 +2,7 @@ import os
 
 # stuffs from azure/infrastructure
 DB_CONNECTION_STRING = os.getenv("DB_CONNECTION_STRING")
+DB_NAME = os.getenv("DB_NAME")
 SB_CONNECTION_STRING = os.getenv("SB_CONNECTION_STRING")
 APPINSIGHTS_CONNECTION_STRING = os.getenv("APPINSIGHTS_CONNECTION_STRING")
 

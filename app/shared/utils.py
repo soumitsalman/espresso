@@ -1,9 +1,8 @@
+from datetime import datetime, timedelta
 import humanize
-import tldextract
 from urllib.parse import urlparse
 import logging
 from app.shared.env import *
-from icecream import ic
 
 # cache settings
 ONE_HOUR = 3600
@@ -21,3 +20,5 @@ is_valid_url = lambda url: urlparse(url).scheme in ["http", "https"]
 favicon = lambda bean: "https://www.google.com/s2/favicons?domain="+urlparse(bean.url).netloc
 naturalday = lambda date_val: humanize.naturalday(date_val, format="%a, %b %d")
 user_id = lambda user: user.email if user else None
+ndays_ago = lambda ndays: datetime.now() - timedelta(days=ndays)
+now = datetime.now

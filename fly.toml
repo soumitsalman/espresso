@@ -23,4 +23,6 @@ ignorefile = ".dockerignore"
 APP_NAME = "Espresso"
 OTEL_SERVICE_NAME = "ESPRESSO-WEB"
 BASE_URL = "https://espresso.cafecito.tech"
+DB_NAME = "beansackV2"
+
 

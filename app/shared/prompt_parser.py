@@ -5,8 +5,7 @@
 from enum import Enum
 import argparse
 import shlex
-from pybeansack.datamodels import *
-from icecream import ic
+from app.pybeansack.models import *
 
 class ContentType(str, Enum):    
     POSTS = "posts"

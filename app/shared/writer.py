@@ -2,9 +2,11 @@
 ## ARTICLE WRITER ##
 ####################
 from retry import retry
-from pybeansack.utils import create_logger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
+import logging
+
+logger = logging.getLogger(__name__)
 
 WRITER_TEMPLATE = """You are a {content_type} writer. Your task is to rewrite one section of a {content_type} on a given topic from the drafts provided by the user. 
 From the drafts extract ONLY the contents that are strictly relevant to the topic and write the section based on ONLY that. You MUST NOT use your own knowledge for this. 
@@ -37,7 +39,7 @@ class ArticleWriter:
            yield self.write_section(highlights[i], drafts[i], content_type)
            yield "**Sources:** "+ ", ".join({src[0]:f"[{src[0]}]({src[1]})" for src in sources[i]}.values())
 
-    @retry(tries=3, jitter=10, delay=10, logger=create_logger("article writer"))
+    @retry(tries=3, jitter=10, delay=10, logger=logger)
     def write_section(self, topic: str, drafts: list[str], content_type: str = DEFAULT_CONTENT_TYPE) -> str:        
         while True:         
             # run it once at least   

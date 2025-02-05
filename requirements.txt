@@ -3,7 +3,6 @@ slack-bolt
 pydantic
 nicegui
 fastapi[standard]
-pymongo
 motor
 retry
 authlib

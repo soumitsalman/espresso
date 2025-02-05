@@ -1,14 +1,10 @@
-from itertools import chain
 from app.shared.utils import *
 from app.shared.messages import *
-from app.shared.espressops import *
-from app.shared.beanops import *
-from app.pybeansack.datamodels import *
+from app.shared import beanops
+from app.pybeansack.models import *
 from app.web.renderer import *
 from app.web.custom_ui import *
-from app.pybeansack.utils import ndays_ago
 from nicegui import ui
-from icecream import ic
 import inflect
 
 KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
@@ -33,13 +29,13 @@ async def render_home(user):
                         render_error_text(NOTHING_TRENDING)
         # render trending pages
         with render_card_container("Explore"):                
-            render_barista_names(user, espressops.db.sample_baristas(5))
+            render_barista_names(user, beanops.get_barista_recommendations(user))
     render_footer()
 
 async def render_trending_snapshot(user):
     render_header(user)
     with ui.grid().classes(CONTENT_GRID_CLASSES):
-        baristas = espressops.db.get_baristas(user.following if user else espressops.DEFAULT_BARISTAS, projection=None)
+        baristas = beanops.get_baristas(user)
         for barista in baristas:
             with render_card_container(barista.title, on_click=create_barista_navigate_func(barista), header_classes="text-wrap bg-dark").classes("bg-transparent"):
                 if beanops.count_beans(query=None, embedding=barista.embedding, accuracy=barista.accuracy, tags=barista.tags, kinds=None, sources=None, last_ndays=1, limit=1):  
@@ -49,8 +45,9 @@ async def render_trending_snapshot(user):
                         tags=b.tags, 
                         kinds=None, 
                         sources=b.sources, 
-                        last_ndays=MIN_WINDOW, 
-                        start=0, limit=MIN_LIMIT)
+                        last_ndays=beanops.MIN_WINDOW, 
+                        start=0, 
+                        limit=beanops.MIN_LIMIT)
                     render_beans(user, get_beans_func)
                 else:
                     render_error_text(NOTHING_TRENDING)                            
@@ -59,7 +56,7 @@ async def render_trending_snapshot(user):
 inflect_engine = inflect.engine()
 tags_banner_text = lambda tags: inflect_engine.join(tags) if tags else inflect_engine.join(list(KIND_LABELS.values()))
 
-async def render_beans_page(user: User, must_have_tags: str|list[str], kind: str = DEFAULT_KIND): 
+async def render_beans_page(user: User, must_have_tags: str|list[str], kind: str = beanops.DEFAULT_KIND): 
     if must_have_tags:
         must_have_tags = must_have_tags if isinstance(must_have_tags, list) else [must_have_tags]
     tags, sort_by = must_have_tags, DEFAULT_SORT_BY # starting default 
@@ -67,7 +64,7 @@ async def render_beans_page(user: User, must_have_tags: str|list[str], kind: str
     def get_beans(start, limit):
         result = beanops.get_trending_beans(embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=None, start=start, limit=limit) \
             if sort_by == TRENDING else \
-                beanops.get_newest_beans(embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=MIN_WINDOW, start=start, limit=limit)
+                beanops.get_newest_beans(embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=beanops.MIN_WINDOW, start=start, limit=limit)
         log("beans_page", user_id=user.email if user else None, tags=tags, kind=kind, sort_by=sort_by, start=start, urls=[bean.url for bean in result])
         return result
 
@@ -93,27 +90,27 @@ async def render_beans_page(user: User, must_have_tags: str|list[str], kind: str
     )
 
 async def render_barista_page(user: User, barista: Barista):    
-    tags, kind, sort_by = barista.tags, DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
+    tags, kind, sort_by = barista.query_tags, beanops.DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
 
     def get_beans(start, limit):
         # if specific urls are provided (applicable for pages that are from user shares)
-        if barista.urls:
-            result = beanops.get_beans(urls=barista.urls, tags=tags, kinds=kind, sources=barista.sources, last_ndays=None, sort_by=LATEST_AND_TRENDING, start=start, limit=limit) \
+        if barista.query_urls:
+            result = beanops.get_beans(urls=barista.query_urls, tags=tags, kinds=kind, sources=barista.query_sources, last_ndays=None, sort_by=beanops.LATEST_AND_TRENDING, start=start, limit=limit) \
                 if sort_by == TRENDING else \
-                    beanops.get_beans(urls=barista.urls, tags=tags, kinds=kind, sources=barista.sources, last_ndays=MIN_WINDOW, sort_by=NEWEST_AND_TRENDING, start=start, limit=limit)
+                    beanops.get_beans(urls=barista.query_urls, tags=tags, kinds=kind, sources=barista.query_sources, last_ndays=beanops.MIN_WINDOW, sort_by=beanops.NEWEST_AND_TRENDING, start=start, limit=limit)
         else:
-            result = beanops.get_trending_beans(embedding=barista.embedding, accuracy=barista.accuracy, tags=tags, kinds=kind, sources=barista.sources, last_ndays=barista.last_ndays, start=start, limit=limit) \
+            result = beanops.get_trending_beans(embedding=barista.query_embedding, accuracy=barista.query_distance, tags=tags, kinds=kind, sources=barista.query_sources, last_ndays=None, start=start, limit=limit) \
                 if sort_by == TRENDING else \
-                    beanops.get_newest_beans(embedding=barista.embedding, accuracy=barista.accuracy, tags=tags, kinds=kind, sources=barista.sources, last_ndays=MIN_WINDOW, start=start, limit=limit)
+                    beanops.get_newest_beans(embedding=barista.query_embedding, accuracy=barista.query_distance, tags=tags, kinds=kind, sources=barista.query_sources, last_ndays=beanops.MIN_WINDOW, start=start, limit=limit)
         log("barista_page", user_id=user.email if user else None, page_id=barista.id, tags=tags, kind=kind, sort_by=sort_by, start=start, urls=[bean.url for bean in result])
         return result
     
     def trigger_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None) -> Callable:
         nonlocal tags, kind, sort_by
         if filter_tags == REMOVE_FILTER: # explicitly mentioning is not None is important because that is the default value
-            tags = barista.tags
+            tags = barista.query_tags
         else:
-            tags = [barista.tags, filter_tags] if (barista.tags and filter_tags) else (barista.tags or filter_tags) # filter_tags == [] means there is no additional tag to filter with
+            tags = [barista.query_tags, filter_tags] if (barista.query_tags and filter_tags) else (barista.query_tags or filter_tags) # filter_tags == [] means there is no additional tag to filter with
         if filter_kind:
             kind = filter_kind if filter_kind != REMOVE_FILTER else None
         if filter_sort_by:
@@ -121,19 +118,19 @@ async def render_barista_page(user: User, barista: Barista):
         return get_beans
         
     async def toggle_publish():
-        if espressops.db.is_published(barista.id):
-            espressops.db.unpublish(barista.id)
+        if beanops.db.is_published(barista.id):
+            beanops.db.unpublish(barista.id)
             log("unpublished", user_id=user_id(user), page_id=barista.id)
         else:
-            espressops.db.publish(barista.id)
+            beanops.db.publish(barista.id)
             log("published", user_id=user_id(user), page_id=barista.id)
             
     async def toggle_follow():
         if barista.id not in user.following:
-            espressops.db.follow_barista(user.email, barista.id)
+            beanops.db.follow_barista(user.email, barista.id)
             log("followed", user_id=user_id(user), page_id=barista.id)
         else:
-            espressops.db.unfollow_barista(user.email, barista.id)
+            beanops.db.unfollow_barista(user.email, barista.id)
             log("unfollowed", user_id=user_id(user), page_id=barista.id)
             
     with ui.label(barista.title).classes("text-h6"):        
@@ -155,7 +152,7 @@ async def render_barista_page(user: User, barista: Barista):
     
     render_page_content(
         user, 
-        lambda: beanops.get_tags(barista.urls, None, barista.embedding, barista.accuracy, barista.tags, None, barista.sources, None, 0, MAX_FILTER_TAGS), 
+        lambda: beanops.get_tags(barista.query_urls, None, barista.query_embedding, barista.query_distance, barista.query_tags, None, barista.query_sources, None, 0, MAX_FILTER_TAGS), 
         trigger_filter,
         initial_kind=kind
     )
@@ -202,12 +199,11 @@ async def render_search(user: User, query: str, accuracy: float):
 
     if not query:  return
 
-    tags, kind, last_ndays = None, DEFAULT_KIND, DEFAULT_WINDOW
-    embedding = await embed_query(query)
+    tags, kind, last_ndays = None, beanops.DEFAULT_KIND, beanops.DEFAULT_WINDOW
 
     def get_beans(start, limit):
-        result = beanops.vector_search_beans(query=None, embedding=embedding, accuracy=accuracy, tags=tags, kinds=kind, sources=None, last_ndays=last_ndays, start=start, limit=limit)
-        log("search", user_id=user.email if user else None, query=query, accuracy=accuracy, tags=tags, kind=kind, last_ndays=last_ndays, start=start, urls=[bean.url for bean in result])
+        result = beanops.text_search_beans(query=query, tags=tags, kinds=kind, sources=None, last_ndays=last_ndays, start=start, limit=limit)
+        log("search", user_id=user.email if user else None, query=query, tags=tags, kind=kind, last_ndays=last_ndays, start=start, urls=[bean.url for bean in result])
         return result
     
     @ui.refreshable
@@ -224,7 +220,7 @@ async def render_search(user: User, query: str, accuracy: float):
             last_ndays = filter_last_ndays
 
         if kind == SAVED_PAGE and query:
-            result = espressops.db.search_baristas(query)
+            result = beanops.db.search_baristas(query)
             log("search", user_id=user.email if user else None, query=query, tags=tags, kind=kind)
             if result: render_barista_names(user, result)
             else: render_error_text(NOTHING_FOUND)
@@ -232,14 +228,16 @@ async def render_search(user: User, query: str, accuracy: float):
         return render_paginated_beans(
             user, 
             get_beans, 
-            lambda: beanops.count_beans(query=None, embedding=embedding, accuracy=accuracy, tags=tags, kinds=kind, sources=None, last_ndays=last_ndays, limit=MAX_LIMIT)).classes("w-full")               
+            lambda: beanops.count_beans(query=query, embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=last_ndays, limit=beanops.MAX_LIMIT)).classes("w-full")               
 
     with ui.grid(columns=2).classes("w-full"):                         
         with ui.label("Accuracy").classes("w-full"):
             accuracy_filter = ui.slider(
                 min=0.1, max=1.0, step=0.05, 
-                value=(accuracy or DEFAULT_ACCURACY), 
-                on_change=debounce(lambda: render_result_panel.refresh(filter_accuracy=accuracy_filter.value), 1.5)).props("label-always")
+                value=(accuracy or beanops.DEFAULT_ACCURACY), 
+                on_change=debounce(lambda: render_result_panel.refresh(filter_accuracy=accuracy_filter.value), 1.5)).props("label-always").tooltip("We will be back")
+            # NOTE: disabling it temporarily until the db switch
+            accuracy_filter.set_enabled(False)
 
         with ui.label().classes("w-full") as last_ndays_label:
             last_ndays_filter = ui.slider(
@@ -249,26 +247,22 @@ async def render_search(user: User, query: str, accuracy: float):
 
     kind_filter = ui.toggle(
         options=SEARCH_PAGE_TABS, 
-        value=DEFAULT_KIND, 
+        value=beanops.DEFAULT_KIND, 
         on_change=lambda: render_result_panel.refresh(filter_kind=kind_filter.value or REMOVE_FILTER)).props("unelevated rounded no-caps color=dark toggle-color=primary").classes("w-full")               
     
-    render_filter_tags(
-        load_tags=lambda: beanops.get_tags(None, None, embedding, accuracy, None, None, None, None, 0, MAX_FILTER_TAGS), 
-        on_selection_changed=lambda selected_tags: render_result_panel.refresh(filter_tags=(selected_tags or REMOVE_FILTER))).classes("w-full")
+    # render_filter_tags(
+    #     load_tags=lambda: get_tags(None, query, None, None, None, None, None, None, 0, MAX_FILTER_TAGS), 
+    #     on_selection_changed=lambda selected_tags: render_result_panel.refresh(filter_tags=(selected_tags or REMOVE_FILTER))).classes("w-full")
     
     render_result_panel(filter_accuracy=None, filter_tags=None, filter_kind=None, filter_last_ndays=None)
     # TODO: fill it up with popular searches
     render_footer()
 
-async def embed_query(query: str):
-    if is_valid_url(query): return await run.io_bound(beanops.get_bean_embedding, query)
-    else: return await run.cpu_bound(beanops.embed, query)
-
 async def render_registration(userinfo: dict):
     render_header(None)
 
     async def success():
-        espressops.db.create_user(userinfo)
+        beanops.db.create_user(userinfo, beanops.DEFAULT_BARISTAS)
         ui.navigate.to("/")
 
     with ui.card(align_items="stretch").classes("self-center"):
