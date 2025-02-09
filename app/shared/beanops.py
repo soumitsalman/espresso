@@ -5,17 +5,18 @@ from app.pybeansack.mongosack import Beansack, LATEST_AND_TRENDING, NEWEST_AND_T
 from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
-from sentence_transformers import SentenceTransformer
+
 
 PROJECTION = {K_EMBEDDING: 0, K_TEXT:0, K_ID: 0}
 
 db: Beansack = None
-embedder: SentenceTransformer = None
+embedder = None
 
 def initiatize(db_conn: str, db_name: str = "beansack", embedder_path: str = None):
     global db, embedder
     db = Beansack(db_conn, db_name)
     if embedder_path:
+        from sentence_transformers import SentenceTransformer
         embedder = SentenceTransformer(embedder_path, device="cpu", trust_remote_code=True, tokenizer_kwargs={"truncation": True})
 
 @cached(max_size=1, ttl=ONE_WEEK)
