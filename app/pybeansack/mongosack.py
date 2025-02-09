@@ -13,7 +13,7 @@ from pymongo.collection import Collection
 
 TIMEOUT = 300000 # 3 mins
 DEFAULT_VECTOR_SEARCH_SCORE = 0.7
-DEFAULT_VECTOR_SEARCH_LIMIT = 1000
+DEFAULT_VECTOR_SEARCH_LIMIT = 500
 MAX_CLUSTER_SIZE = 20 # this is kept as a multiplier to optimize search
 
 # names of db and collections
@@ -262,7 +262,7 @@ class Beansack:
                         "vector": embedding,
                         "path":   K_EMBEDDING,
                         "filter": match,
-                        "k":      (skip+limit)*MAX_CLUSTER_SIZE if (skip+limit) else DEFAULT_VECTOR_SEARCH_LIMIT,
+                        "k":      DEFAULT_VECTOR_SEARCH_LIMIT,
                     },
                     "returnStoredSource": True
                 }
@@ -371,7 +371,7 @@ class Beansack:
                         "vector": embedding,
                         "path":   K_EMBEDDING,
                         "filter": filter or {},
-                        "k":      (skip+limit)*MAX_CLUSTER_SIZE if (skip+limit) else DEFAULT_VECTOR_SEARCH_LIMIT, # if limit is 1, then we don't need to search for more than 1
+                        "k":      DEFAULT_VECTOR_SEARCH_LIMIT, # if limit is 1, then we don't need to search for more than 1
                     }
                 }
             },
@@ -559,8 +559,8 @@ class Beansack:
                 "$addToSet": { "urls": url },
                 "$setOnInsert": { 
                     K_OWNER: user.email,
-                    K_TITLE: user.name,
-                    K_DESCRIPTION: "News, blogs and posts shared by " + user.name
+                    K_TITLE: f"{user.name}'s Bookmarks",
+                    K_DESCRIPTION: f"News, blogs and posts bookmarked by {user.name}"
                 }
             },
             upsert = True

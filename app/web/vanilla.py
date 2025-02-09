@@ -23,7 +23,7 @@ async def render_home(user):
     tags, kind, sort_by = None, DEFAULT_KIND, DEFAULT_SORT_BY # starting default 
 
     def retrieve_beans(start, limit):
-        log("home", user_id=user, tags=tags, kind=kind, sort_by=sort_by, start=start, limit=limit)
+        log("home", user_id=user, tags=tags, kinds=kind, sort_by=sort_by, start=start, limit=limit)
         return beanops.get_beans_per_group(tags, kind, None, sort_by_value(sort_by), start, limit)
 
     def apply_retrieval_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
@@ -65,38 +65,33 @@ async def render_home(user):
 #                     render_error_text(NOTHING_TRENDING)                            
 #     render_footer()
 
-# async def render_beans_page(user: User, must_have_tags: str|list[str], kind: str = beanops.DEFAULT_KIND): 
-#     if must_have_tags:
-#         must_have_tags = must_have_tags if isinstance(must_have_tags, list) else [must_have_tags]
-#     tags, sort_by = must_have_tags, DEFAULT_SORT_BY # starting default 
+async def render_custom_page(user: User, include_tags: str|list[str], sources: str|list[str]): 
+    # if must_have_tags:
+    #     must_have_tags = must_have_tags if isinstance(must_have_tags, list) else [must_have_tags]
+    page_title = include_tags or sources
+    tags, kind, sort_by = include_tags, DEFAULT_KIND, DEFAULT_SORT_BY # starting default 
 
-#     def get_beans(start, limit):
-#         result = beanops.get_trending_beans(embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=None, start=start, limit=limit) \
-#             if sort_by == TRENDING else \
-#                 beanops.get_newest_beans(embedding=None, accuracy=None, tags=tags, kinds=kind, sources=None, last_ndays=beanops.MIN_WINDOW, start=start, limit=limit)
-#         log("beans_page", user_id=user.email if isinstance(user, User) else None, tags=tags, kind=kind, sort_by=sort_by, start=start, urls=[bean.url for bean in result])
-#         return result
+    def retrieve_beans(start, limit):
+        log("custom_barista", user_id=user, page_id=page_title, tags=tags, kinds=kind, sources=sources, sort_by=sort_by, start=start, limit=limit)
+        return beanops.search_beans(query=None, accuracy=None, tags=tags, kinds=kind, sources=sources, last_ndays=None, sort_by=sort_by_value(sort_by), start=start, limit=limit)
 
-#     def trigger_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
-#         nonlocal tags, kind, sort_by
-#         if filter_tags == REMOVE_FILTER:
-#             tags = must_have_tags
-#         else:
-#             tags = [must_have_tags, filter_tags] if (must_have_tags and filter_tags) else (must_have_tags or filter_tags) # filter_tags == [] means there is no additional tag to filter with     
-#         if filter_kind:
-#             kind = filter_kind if filter_kind != REMOVE_FILTER else None
-#         if filter_sort_by:
-#             sort_by = filter_sort_by
-#         return get_beans
+    def apply_retrieval_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
+        nonlocal tags, kind, sort_by    
+        if filter_tags:
+            tags = [include_tags, filter_tags] if filter_tags != REMOVE_FILTER else include_tags
+        if filter_kind:
+            kind = filter_kind if filter_kind != REMOVE_FILTER else None
+        if filter_sort_by:
+            sort_by = filter_sort_by
+        return retrieve_beans
     
-#     ui.label(tags_banner_text(must_have_tags)).classes("text-h6")
+    render_banner(page_title)
     
-#     _render_content(
-#         user, 
-#         lambda: beanops.get_tags(None, None, None, None, must_have_tags, None, None, None, 0, MAX_FILTER_TAGS), 
-#         trigger_filter,
-#         initial_kind=kind
-#     )
+    _render_content(
+        user, 
+        lambda: beanops.search_tags(None, None, include_tags, None, sources, None, 0, MAX_FILTER_TAGS), 
+        apply_retrieval_filter,
+    )
 
 async def render_barista_page(user: User, barista: Barista):    
     tags, kind, sort_by = barista.query_tags, beanops.DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
@@ -113,24 +108,7 @@ async def render_barista_page(user: User, barista: Barista):
             kind = filter_kind if filter_kind != REMOVE_FILTER else None
         if filter_sort_by:
             sort_by = filter_sort_by
-            
         return retrieve_beans
-        
-    async def toggle_publish():
-        if beanops.db.is_published(barista.id):
-            beanops.db.unpublish(barista.id)
-            log("unpublished", user_id=beanops.user_id(user), page_id=barista.id)
-        else:
-            beanops.db.publish(barista.id)
-            log("published", user_id=beanops.user_id(user), page_id=barista.id)
-            
-    async def toggle_follow():
-        if barista.id not in user.following:
-            beanops.db.follow_barista(user.email, barista.id)
-            log("followed", user_id=beanops.user_id(user), page_id=barista.id)
-        else:
-            beanops.db.unfollow_barista(user.email, barista.id)
-            log("unfollowed", user_id=beanops.user_id(user), page_id=barista.id)
             
     with render_banner(barista.title):        
         if isinstance(user, User):
@@ -140,11 +118,11 @@ async def render_barista_page(user: User, barista: Barista):
                 with ui.menu():  
                     if has_publish_permission:
                         with ui.item("Public"):
-                            ui.switch(value=barista.public, on_change=toggle_publish).props("flat checked-icon=public unchecked-icon=public_off")
+                            ui.switch(value=barista.public, on_change=lambda: beanops.toggle_publish(user, barista)).props("flat checked-icon=public unchecked-icon=public_off")
 
                     if has_unfollow_permission:
                         with ui.item("Follow"):
-                            ui.switch(value=barista.id in user.following, on_change=toggle_follow).props("flat checked-icon=playlist_add_check")
+                            ui.switch(value=barista.id in user.following, on_change=lambda: beanops.toggle_follow(user, barista)).props("flat checked-icon=playlist_add_check")
 
                     # with ui.menu_item("Pour a Filtered Cup", on_click=lambda: ui.notify("Coming soon")):
                     #     ui.avatar(icon="filter_list", color="transparent")
@@ -163,7 +141,6 @@ def _render_content(user, get_tags_func: Callable, apply_retrieval_filter_func: 
         return render_beans_as_extendable_list(user, retrieval_func, container).classes("w-full")
 
     render_header(user)  
-
     # tag filter panel
     render_filter_tags(
         load_tags=get_tags_func, 
@@ -189,12 +166,11 @@ async def render_search(user: User, query: str = None, accuracy: float = None, q
 
     def retrieve_beans(start, limit):
         log("search", user_id=user, query=query, accuracy=accuracy, tags=tags, kinds=kind, last_ndays=last_ndays, start=start, limit=limit)
-        return beanops.search_beans(query, accuracy, tags, kind, None, last_ndays, start, limit)
+        return beanops.search_beans(query, accuracy, tags, kind, None, last_ndays, None, start, limit)
     
     @ui.refreshable
     def render_result_panel(filter_accuracy: float = None, filter_tags: str|list[str] = None, filter_kind: str = None, filter_last_ndays: int = None):
-        nonlocal accuracy, tags, kind, last_ndays        
-
+        nonlocal accuracy, tags, kind, last_ndays  
         if filter_accuracy:
             accuracy = filter_accuracy        
         if filter_tags:

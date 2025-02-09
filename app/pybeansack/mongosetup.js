@@ -69,7 +69,6 @@ db.beans.createIndex(
   }
 );
 
-
 // needed for related beans
 db.beans.createIndex(
   {
@@ -107,10 +106,11 @@ db.beans.createIndex(
   {
       tags: 1,
       kind: 1,
-      updated: -1
+      updated: -1,
+      trend_score: -1
   },
   {
-      name: "beans_tags_and_kind_and_updated"
+      name: "beans_tags_and_kind_updated_and_trending"
   }
 );
 
@@ -119,36 +119,44 @@ db.beans.createIndex(
   {
       tags: 1,
       kind: 1,
-      created: -1
+      created: -1,
+      trend_score: -1
   },
   {
-      name: "beans_tags_and_kind_and_created"
+      name: "beans_tags_and_kind_created_and_trending"
   }
 );
 
 // needed for group by cluster
 db.beans.createIndex(
   {
-      cluster_id: 1,
       kind: 1,        
       created: -1,  
       trend_score: -1
   },
   {
-      name: "beans_cluster_kind_created_and_trending"
+      name: "beans_kind_created_and_trending"
   }
 );
 
 // needed for group by cluster
 db.beans.createIndex(
   {
-      cluster_id: 1,
       kind: 1,        
       updated: -1,  
       trend_score: -1
   },
   {
-      name: "beans_cluster_kind_updated_and_trending"
+      name: "beans_kind_updated_and_trending"
+  }
+);
+
+db.beans.createIndex(
+  {
+    source: 1
+  },
+  {
+    name: "beans_source"
   }
 );
 

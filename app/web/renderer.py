@@ -58,14 +58,17 @@ def create_navigation_target(base_url: str, **kwargs) -> str:
     return base_url
 
 def create_search_target(query = None, tag = None):
-    if query:
-        return create_navigation_target("/search", query=query)
-    if tag:
-        return create_navigation_target("/search", tag=tag)
+    if query: return create_navigation_target("/search", query=query)
+    if tag: return create_navigation_target("/search", tag=tag)
     return create_navigation_target("/search")
 
+def create_barista_target(barista_id = None, source = None, tag = None):
+    if barista_id: return f"/baristas/{barista_id}"
+    if source: return create_navigation_target("/baristas", source=source)
+    if tag: return create_navigation_target("/baristas", tag=tag)
+
 navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
-navigate_to_barista = lambda barista_id: ui.navigate.to(f"/baristas/{barista_id}")
+navigate_to_barista = lambda barista_id = None, source = None, tag = None: ui.navigate.to(create_barista_target(barista_id, source, tag))
 navigate_to_search = lambda query = None, tags = None: ui.navigate.to(create_search_target(query, tags))
 
 def render_banner(text: str|list[str]):
@@ -301,7 +304,7 @@ def render_bean_body(user: User, bean: Bean):
     return view
 
 def render_bean_tags(user: User, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_search_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+    make_tag = lambda tag: ui.link(tag, target=create_barista_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
         [make_tag(tag) for tag in random.sample(bean.tags, min(MAX_TAGS_PER_BEAN, len(bean.tags)))]
     return view
@@ -315,14 +318,6 @@ def render_bean_source(user: User, bean: Bean):
 def render_bean_actions(user: User, bean: Bean): 
     share_text = f"{bean.summary}\n\n{bean.url}"  
     
-    def toggle_bookmark():
-        if beanops.db.is_bookmarked(user, bean.url):
-            log("unbookmarked", user_id=user, url=bean.url)
-            beanops.db.unbookmark(user, bean.url)            
-        else:
-            log("bookmarked", user_id=user, url=bean.url)
-            beanops.db.bookmark(user, bean.url)
-    
     def share_func(target: str):
         return lambda: [
             log("shared", user_id=user, url=bean.url, target=target),
@@ -331,7 +326,8 @@ def render_bean_actions(user: User, bean: Bean):
     share_button = lambda target, icon: ui.button(on_click=share_func(target), icon=icon, color="transparent").props("flat")
         
     with ui.button_group().props("flat size=sm").classes("p-0 m-0"):
-        ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(bean.url)).props("flat size=sm").tooltip("Find more like this")
+        ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_barista(source=bean.source)).props("flat size=sm").tooltip("More from this channel")
+        ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(bean.url)).props("flat size=sm").tooltip("More like this")
         
         with ui.button(icon="share", color="secondary").props("flat size=sm") as view:
             with ui.menu().props("auto-close"):
@@ -346,7 +342,7 @@ def render_bean_actions(user: User, bean: Bean):
                 beanops.db.is_bookmarked(user, bean.url), 
                 unswitched_text=None, switched_text=None, 
                 unswitched_icon="bookmark_outlined", switched_icon="bookmark", 
-                on_click=toggle_bookmark,
+                on_click=lambda: beanops.toggle_bookmark(user, bean),
                 color="secondary"
             ).props("flat size=sm")
     return view  

@@ -17,4 +17,3 @@ memoization
 azure-monitor-opentelemetry
 python-dotenv
 inflect
-sentence-transformers

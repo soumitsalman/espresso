@@ -132,7 +132,7 @@ def get_barista_tags(barista: Barista, start: int, limit: int):
     return db.query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int):
+def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     if is_valid_url(query): 
         bean = _get_bean(query)
@@ -149,7 +149,7 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
     
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
     if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
-    return db.query_beans_per_cluster(filter=_create_filter(tags, kinds, sources, None, last_ndays, None), sort_by=NEWEST_AND_TRENDING, skip=start, limit=limit, projection=PROJECTION)
+    return db.query_beans_per_cluster(filter=_create_filter(tags, kinds, sources, None, last_ndays, None), sort_by=sort_by or NEWEST_AND_TRENDING, skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
@@ -254,10 +254,29 @@ def search_baristas(user: User|str|None, query: str):
     if user: log("search baristas", user_id=user, query=query)
     return db.search_baristas(query, BARISTAS_PROJECTION)
 
-# def _add_url_filter(filter: dict, urls: str|list[str]):
-#     if isinstance(urls, list): filter[K_URL] = {"$in": urls}
-#     if isinstance(urls, str): filter[K_URL] = urls
-#     return filter
+def toggle_bookmark(user: User|str, bean: Bean):
+    if db.is_bookmarked(user, bean.url):
+        db.unbookmark(user, bean.url)   
+        log("unbookmarked", user_id=user, url=bean.url)         
+    else:
+        db.bookmark(user, bean.url)
+        log("bookmarked", user_id=user, url=bean.url)
+
+def toggle_publish(user: User|str, barista: Barista):
+    if db.is_published(barista.id):
+        db.unpublish(barista.id)
+        log("unpublished", user_id=user, page_id=barista.id)
+    else:
+        db.publish(barista.id)
+        log("published", user_id=user, page_id=barista.id)
+        
+def toggle_follow(user: User|str, barista: Barista):
+    if barista.id not in user.following:
+        db.follow_barista(user.email, barista.id)
+        log("followed", user_id=user, page_id=barista.id)
+    else:
+        db.unfollow_barista(user.email, barista.id)
+        log("unfollowed", user_id=user, page_id=barista.id)
 
 def _create_filter(
         tags: str|list[str]|list[list[str]], 

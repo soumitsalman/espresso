@@ -241,18 +241,11 @@ async def home(user: beanops.User|str = Depends(extract_user)):
     log('home', user_id=user)
     await vanilla.render_home(user)
 
-# @ui.page("/beans", title="Espresso News, Posts and Blogs")
-# async def beans(
-#     user: beanops.User = Depends(extract_user),
-#     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-#     kind: str | None = Query(default=None)
-# ):
-#     log('beans', user_id=user, tag=tag, kind=kind)
-#     await vanilla.render_beans_page(user, tag, kind)
+
 
 # @ui.page("/baristas", title="Espresso Shots")
 # async def snapshot(user: User|str = Depends(extract_user)): 
-#     log('baristas', user_id=user) 
+#     log('barista', user_id=user) 
 #     await vanilla.render_trending_snapshot(user)
 
 @ui.page("/baristas/{barista_id}", title="Espresso")
@@ -260,8 +253,17 @@ async def barista(
     user: User|str = Depends(extract_user),
     barista: Barista = Depends(validate_barista, use_cache=True)
 ): 
-    log('baristas', user_id=user, page_id=barista.id) 
+    log('barista', user_id=user, page_id=barista.id) 
     await vanilla.render_barista_page(user, barista)
+
+@ui.page("/baristas", title="Espresso News, Posts and Blogs")
+async def custom_barista(
+    user: beanops.User = Depends(extract_user),
+    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
+    source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
+):
+    log('barista', user_id=user, tags=tag, sources=source)
+    await vanilla.render_custom_page(user, tag, source)
 
 @ui.page("/search", title="Espresso Search")
 async def search(
