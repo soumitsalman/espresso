@@ -19,8 +19,10 @@ PUBLISHED = "👍 Published"
 
 IN_MAINTENANCE = "Taking an EPIC 💩! We will be back soon... (famous last words, yes we know)"
 
+HOME_BANNER_TEXT = "News, Stories, Blogs and more"
 # CONSOLE_EXAMPLES = ["trending -q automotive-logistics", "search -q \"Earnings reports\" -t Apple", "publish url1 url2 url3"]   
 CONSOLE_PLACEHOLDER = "Tell me lies, sweet little lies"
-SEARCH_PLACEHOLDER = "What are you looking for today?"
+SEARCH_BEANS_PLACEHOLDER = "What would you like to know today?"
+SEARCH_BARISTA_PLACEHOLDER = "Find your filtered pour"
 
 COOKIE_NOTIFICATION = "We use cookies which are necessary for maintaining your browsing session experience on our website. By continuing to use this site, you agree to our use of cookies."

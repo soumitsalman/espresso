@@ -148,6 +148,6 @@ class Barista(BaseModel):
     query_embedding: Optional[list[float]] = Field(default=None, alias="embedding")
     query_distance: Optional[float] = Field(default=None, alias="distance")
     
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed=False
+    # class Config:
+    #     populate_by_name = True
+    #     arbitrary_types_allowed=False

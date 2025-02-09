@@ -2,26 +2,22 @@ from contextlib import contextmanager
 import random
 import threading
 from typing import Callable
+import inflect
+from urllib.parse import urlencode
+from nicegui import ui, background_tasks, run
 from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.messages import *
+from app.shared.env import *
 from app.shared import beanops
-from urllib.parse import urlencode
-from nicegui import ui, background_tasks, run
-from icecream import ic
-
 from app.web.custom_ui import SwitchButton
-
-MAX_ITEMS_PER_PAGE = 5
-MAX_PAGES = 10
-MAX_TAGS_PER_BEAN = 5
-MAX_RELATED_ITEMS = 5
-MAX_FILTER_TAGS = 7
+from icecream import ic
 
 PRIMARY_COLOR = "#4e392a"
 SECONDARY_COLOR = "#b79579"
 IMAGE_DIMENSIONS = "w-32"
-
+STRETCH_FIT = "w-full h-full m-0 p-0"
+ELLISPSIS_LENGTH = 30
 CSS_FILE = "./app/web/styles.css"
 
 GOOGLE_ICON = "img:https://www.google.com/favicon.ico"
@@ -50,6 +46,9 @@ LOGIN_OPTIONS = [
     # }
 ]
 
+inflect_engine = inflect.engine()
+
+ellipsis_text = lambda text: text[:ELLISPSIS_LENGTH]+'...' if len(text) > ELLISPSIS_LENGTH else text
 rounded_number = lambda counter: str(counter) if counter < beanops.MAX_LIMIT else str(beanops.MAX_LIMIT-1)+'+'
 rounded_number_with_max = lambda counter, top: str(counter) if counter <= top else str(top)+'+'
 
@@ -58,46 +57,46 @@ def create_navigation_target(base_url: str, **kwargs) -> str:
         return base_url+"?"+urlencode(query={key:value for key, value in kwargs.items() if value})
     return base_url
 
-def create_navigation_func(base_url, **kwargs):
-    return lambda base_url=base_url, kwargs=kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
+def create_search_target(query = None, tag = None):
+    if query:
+        return create_navigation_target("/search", query=query)
+    if tag:
+        return create_navigation_target("/search", tag=tag)
+    return create_navigation_target("/search")
 
-def create_barista_navigate_func(barista: Barista):
-    return lambda barista=barista: ui.navigate.to(f"/baristas/{barista.id}")
+navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
+navigate_to_barista = lambda barista_id: ui.navigate.to(f"/baristas/{barista_id}")
+navigate_to_search = lambda query = None, tags = None: ui.navigate.to(create_search_target(query, tags))
 
-def create_search_target(text):
-    return create_navigation_target("/search", q=text) \
-        if not is_valid_url(text) else \
-            create_navigation_target("/search", url=text)
+def render_banner(text: str|list[str]):
+    banner_text = inflect_engine.join(text) if isinstance(text, list) else text
+    return ui.label(banner_text).classes("text-h6")
 
 def render_header(user: User):
     ui.add_css(CSS_FILE)
     ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)    
 
-    with ui.left_drawer(bordered=False).props("width=250 breakpoint=600 show-if-above").classes("p-0") as barista_panel:                 
-        with ui.scroll_area().classes("w-full h-full p-0 m-0 fit"):
-            render_navigation_panel(user)
+    barista_panel = render_navigation_panel(user)
         
     with ui.header(wrap=False).props("reveal").classes("justify-between items-stretch rounded-borders p-1 q-ma-xs") as header:     
-        with ui.button(on_click=create_navigation_func("/")).props("unelevated").classes("q-px-xs"):
+        with ui.button(on_click=barista_panel.toggle).props("unelevated").classes("q-px-xs"):
             with ui.avatar(square=True, size="md").classes("rounded-borders"):
                 ui.image("images/cafecito.png")
             ui.label("Espresso").classes("q-ml-sm")
             
-        # TODO: make this pull up side panel
-        # bookmarks library_books
-        ui.button(icon="local_cafe_outlined", on_click=lambda: barista_panel.toggle()).props("unelevated").classes("lt-sm")
-        ui.button(icon="search_outlined", on_click=create_navigation_func("/search")).props("unelevated").classes("lt-sm")
+        ui.button(icon="home_outlined", on_click=lambda: navigate_to("/")).props("unelevated").classes("lt-sm")
+        ui.button(icon="search_outlined", on_click=navigate_to_search).props("unelevated").classes("lt-sm")
 
-        trigger_search = lambda: ui.navigate.to(create_search_target(search_input.value))
-        with ui.input(placeholder=SEARCH_PLACEHOLDER) \
-            .props('item-aligned clearable dense rounded outlined maxlength=1000 bg-color=dark clear-icon=close') \
+        trigger_search = lambda: navigate_to_search(search_input.value)
+        with ui.input(placeholder=SEARCH_BEANS_PLACEHOLDER) \
+            .props('item-aligned dense standout clearable clear-icon=close maxlength=1000') \
             .classes("gt-xs w-1/2 m-0 p-0") \
             .on("keydown.enter", trigger_search) as search_input:    
             prepend = search_input.add_slot("prepend")   
             with prepend:
                 ui.button(icon="search", color="secondary", on_click=trigger_search).props("flat rounded").classes("m-0")
                 
-        (render_user(user) if user else render_login()).props("unelevated")
+        (render_user(user) if isinstance(user, User) else render_login()).props("unelevated")
     return header
 
 def render_login():
@@ -119,7 +118,7 @@ def render_user(user: User):
             ui.separator()
                         
             if beanops.db.get_barista(user.email):
-                with ui.menu_item(on_click=create_navigation_func("/baristas/"+user.email)):
+                with ui.menu_item(on_click=lambda: navigate_to_barista(user.email)):
                     ui.icon("bookmarks", size="md").classes("q-mr-md")
                     with ui.label("Bookmarks"):
                         ui.label("/baristas/"+user.email).classes("text-caption")
@@ -129,23 +128,60 @@ def render_user(user: User):
                 ui.label("Settings")
 
             ui.separator()
-            with ui.menu_item(on_click=create_navigation_func("/user/me/logout")).classes("text-negative"):
+            with ui.menu_item(on_click=lambda: navigate_to("/user/me/logout")).classes("text-negative"):
                 ui.icon("logout", size="md").classes("q-mr-md")
                 ui.label("Log Out")
     return view
 
-def render_barista_names(user: User, baristas: list[Barista]):
-    with ui.row(align_items="stretch").classes("q-pa-sm") as panel:
-        [ui.item(barista.title, on_click=create_barista_navigate_func(barista)).classes(f"rounded-borders text-lg bg-primary") for barista in baristas]
-    return panel
+# render baristas for navigation
+def render_navigation_panel(user: User|str|None):    
+    navigation_items = _create_navigation_baristas(user)
 
-def render_navigation_panel(user: User):    
-    baristas = beanops.get_baristas(user)
-    with ui.list().classes("w-full p-0 m-0 rounded-borders") as panel:
-        ui.item("Following" if user else "Popular Baristas", on_click=create_navigation_func("/baristas")).classes("text-h6")
-        ui.separator()
-        [ui.item(barista.title, on_click=create_barista_navigate_func(barista)) for barista in baristas]
-    return panel    
+    def search_barista(text: str):
+        search_results_panel.clear()
+        if not text: return 
+        log("search_barista", user_id=user, query=text)
+        baristas = beanops.search_baristas(user, text)
+        with search_results_panel:
+            if baristas: render_barista_items(baristas)
+            else: ui.label(NOTHING_FOUND)
+
+    with ui.left_drawer(bordered=False).props("breakpoint=600 show-if-above").classes("q-pt-xs q-px-sm") as navigation_panel: 
+        with ui.row(wrap=False, align_items="start").classes("gap-0 "+ STRETCH_FIT):
+
+            with ui.tabs().props("vertical outside-arrows mobile-arrows shrink active-bg-color=primary indicator-color=transparent").classes("q-mt-md") as tabs:
+                ui.tab("search", label="", icon="search")
+                [ui.tab(item['label'], label="", icon=item['icon']).tooltip(item['label']) for item in navigation_items]
+                ui.element("q-route-tab").props("href=/ icon=home_outlined")
+            
+            with ui.scroll_area().classes(STRETCH_FIT):
+                with ui.tab_panels(tabs).props("vertical"):
+                    with ui.tab_panel("search").classes(STRETCH_FIT):
+                        render_search_bar(search_barista, SEARCH_BARISTA_PLACEHOLDER)
+                        search_results_panel = render_baristas(None)
+
+                    for item in navigation_items:
+                        with ui.tab_panel(item['label']).classes(STRETCH_FIT):
+                            render_baristas(item['items']).classes(STRETCH_FIT)
+
+        tabs.set_value(navigation_items[0]['label'])
+        
+    return navigation_panel  
+
+def render_search_bar(search_func: Callable, search_placeholder: str = SEARCH_BEANS_PLACEHOLDER):
+    trigger_search = lambda: search_func(search_input.value)
+    search_input = ui.input(placeholder=search_placeholder) \
+        .on("keydown.enter", trigger_search) \
+        .on("clear", trigger_search) \
+        .props("dense standout clearable clear-icon=close")
+    return search_input
+
+render_barista_items = lambda baristas: [ui.item(item.title, on_click=lambda item=item: navigate_to_barista(item.id)).classes("w-full") for item in baristas]
+
+def render_baristas(baristas: list[Barista]):
+    with ui.list() as holder:
+        if baristas: render_barista_items(baristas)
+    return holder 
 
 def render_beans(user: User, load_beans: Callable, container: ui.element = None):
     async def render():
@@ -184,7 +220,7 @@ def render_beans_as_extendable_list(user: User, load_beans: Callable, container:
         more_btn = ui.button("More Stories", on_click=next_page).props("icon-right=chevron_right")
     return view  
 
-def render_paginated_beans(user: User, load_beans: Callable, count_items: Callable):    
+def render_beans_as_paginated_list(user: User, load_beans: Callable, count_items: Callable):    
     @ui.refreshable
     def render(page):
         return render_beans(user, lambda: load_beans((page-1)*MAX_ITEMS_PER_PAGE, MAX_ITEMS_PER_PAGE)).classes("w-full")     
@@ -205,7 +241,7 @@ def render_swipable_beans(user: User, beans: list[Bean]):
             animated=True, 
             arrows=True, 
             value=beans[0].url,
-            # on_value_change=lambda e: log("read", user_id=user_id(user), url=e.sender.value)
+            # on_value_change=lambda e: log("read", user_id=user, url=e.sender.value)
         ).props("swipeable control-color=secondary").classes("rounded-borders w-full h-full"):
             for i, bean in enumerate(beans):
                 with ui.carousel_slide(bean.url).classes("w-full m-0 p-0 no-wrap"):  # Added rounded-borders class here
@@ -218,7 +254,7 @@ render_bean = lambda user, bean, expanded: render_expandable_bean(user, bean, ex
 def render_expandable_bean(user: User, bean: Bean, expanded: bool = False):
     with ui.expansion(
         value=expanded,
-        on_value_change=lambda e: log("read", user_id=user_id(user), url=bean.url) if e.sender.value else None
+        on_value_change=lambda e: log("read", user_id=user, url=bean.url) if e.sender.value else None
     ).props("dense hide-expand-icon").classes("bg-dark rounded-borders") as expansion:
         header = expansion.add_slot("header")
         with header:
@@ -265,7 +301,7 @@ def render_bean_body(user: User, bean: Bean):
     return view
 
 def render_bean_tags(user: User, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_navigation_target("/beans", tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+    make_tag = lambda tag: ui.link(tag, target=create_search_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
         [make_tag(tag) for tag in random.sample(bean.tags, min(MAX_TAGS_PER_BEAN, len(bean.tags)))]
     return view
@@ -273,7 +309,7 @@ def render_bean_tags(user: User, bean: Bean):
 def render_bean_source(user: User, bean: Bean):
     with ui.row(wrap=False, align_items="center").classes("gap-2") as view:        
         ui.icon("img:"+ favicon(bean))
-        ui.link(bean.source, bean.url, new_tab=True).classes("ellipsis-30").on("click", lambda : log("opened", user_id=user_id(user), url=bean.url))
+        ui.link(bean.source, bean.url, new_tab=True).classes("ellipsis-30").on("click", lambda : log("opened", user_id=user, url=bean.url))
     return view
 
 def render_bean_actions(user: User, bean: Bean): 
@@ -281,21 +317,21 @@ def render_bean_actions(user: User, bean: Bean):
     
     def toggle_bookmark():
         if beanops.db.is_bookmarked(user, bean.url):
-            log("unbookmarked", user_id=user_id(user), url=bean.url)
+            log("unbookmarked", user_id=user, url=bean.url)
             beanops.db.unbookmark(user, bean.url)            
         else:
-            log("bookmarked", user_id=user_id(user), url=bean.url)
+            log("bookmarked", user_id=user, url=bean.url)
             beanops.db.bookmark(user, bean.url)
     
     def share_func(target: str):
         return lambda: [
-            log("shared", user_id=user_id(user), url=bean.url, target=target),
+            log("shared", user_id=user, url=bean.url, target=target),
             ui.navigate.to(create_navigation_target(target, url=bean.url, text=share_text), new_tab=True)
         ]
     share_button = lambda target, icon: ui.button(on_click=share_func(target), icon=icon, color="transparent").props("flat")
         
     with ui.button_group().props("flat size=sm").classes("p-0 m-0"):
-        ui.button(icon="search", color="secondary", on_click=create_navigation_func("/search", q=bean.url)).props("flat size=sm").tooltip("Find more like this")
+        ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(bean.url)).props("flat size=sm").tooltip("Find more like this")
         
         with ui.button(icon="share", color="secondary").props("flat size=sm") as view:
             with ui.menu().props("auto-close"):
@@ -305,7 +341,7 @@ def render_bean_actions(user: User, bean: Bean):
                     share_button("https://x.com/intent/tweet", TWITTER_ICON).tooltip("Share on X")
                     share_button("https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
                     # share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
-        if user:
+        if isinstance(user, User):
             SwitchButton(
                 beanops.db.is_bookmarked(user, bean.url), 
                 unswitched_text=None, switched_text=None, 
@@ -413,3 +449,34 @@ def debounce(func, wait):
         last_call = threading.Timer(wait, func, args, kwargs)
         last_call.start()
     return debounced
+
+def _create_navigation_baristas(user: User|str|None):
+    items = [
+        {
+            "icon": "local_cafe_outlined",
+            "label": "Following",
+            "items": beanops.get_following_baristas(user)
+        },
+        {
+            "icon": "label_outlined",
+            "label": "Topics",
+            "items": beanops.get_baristas(DEFAULT_TOPIC_BARISTAS)
+        },
+        {
+            "icon": "rss_feed",
+            "label": "Outlets",
+            "items": beanops.get_baristas(DEFAULT_OUTLET_BARISTAS)
+        },
+        {
+            "icon": "tag",
+            "label": "Tags",
+            "items": beanops.get_baristas(DEFAULT_TAG_BARISTAS)
+        },
+        {
+            "icon": "scatter_plot",
+            "label": "Explore",
+            "items": beanops.get_barista_recommendations(user)
+        }
+        
+    ]
+    return [item for item in items if item["items"]]

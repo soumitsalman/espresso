@@ -124,20 +124,17 @@ def validate_image(image_id: str):
 
 def extract_user():
     token = app.storage.browser.get(JWT_TOKEN_KEY)
+    default_id = app.storage.browser.get("id")
     if not token:
-        return None
+        return default_id
     data = decode_jwt_token(token)
     if not data:
         del app.storage.browser[JWT_TOKEN_KEY]
-        return None
+        return default_id
     user = beanops.db.get_user(data["email"])
     if not user:
         del app.storage.browser[JWT_TOKEN_KEY]
-        return None
-    # TODO: refresh token if close to expiration
-    # if jwt_token_needs_refresh(data):
-    #     print("refreshing token")
-    #     app.storage.browser[JWT_TOKEN_KEY] = create_jwt_token(data["email"])
+        return default_id
     return user
 
 def logged_in_user():
@@ -213,15 +210,15 @@ async def linkedin_oauth_redirect(request: Request):
         return RedirectResponse("/")
 
 @app.get("/user/me/logout")
-async def logout_user(user: beanops.User = Depends(logged_in_user)):
-    log("logout_user", user_id=user_id(user))
+async def logout_user(user: beanops.User|str = Depends(logged_in_user)):
+    log("logout_user", user_id=user)
     if JWT_TOKEN_KEY in app.storage.browser:
         del app.storage.browser[JWT_TOKEN_KEY]
     return RedirectResponse("/")
 
 @app.get("/user/me/delete")
-async def delete_user(user: beanops.User = Depends(logged_in_user)):
-    log("delete_user", user_id=user_id(user))
+async def delete_user(user: beanops.User|str = Depends(logged_in_user)):
+    log("delete_user", user_id=user)
     beanops.db.delete_user(user.email)
     if JWT_TOKEN_KEY in app.storage.browser:
         del app.storage.browser[JWT_TOKEN_KEY]
@@ -229,10 +226,10 @@ async def delete_user(user: beanops.User = Depends(logged_in_user)):
 
 @app.get("/docs/{doc_id}")
 async def document(
-    user: beanops.User = Depends(extract_user),
+    user: beanops.User|str = Depends(extract_user),
     doc_id: str = Depends(validate_doc, use_cache=True)
 ):
-    log('docs', user_id=user_id(user), page_id=doc_id)
+    log('docs', user_id=user, page_id=doc_id)
     return FileResponse(doc_id, media_type="text/markdown")
     
 @app.get("/images/{image_id}")
@@ -240,43 +237,43 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
     return FileResponse(image_id, media_type="image/png")
 
 @ui.page("/", title="Espresso")
-async def home(user: beanops.User = Depends(extract_user)):  
-    log('home', user_id=user_id(user))
+async def home(user: beanops.User|str = Depends(extract_user)):  
+    log('home', user_id=user)
     await vanilla.render_home(user)
 
-@ui.page("/beans", title="Espresso News, Posts and Blogs")
-async def beans(
-    user: beanops.User = Depends(extract_user),
-    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-    kind: str | None = Query(default=None)
-):
-    log('beans', user_id=user_id(user), tag=tag, kind=kind)
-    await vanilla.render_beans_page(user, tag, kind)
+# @ui.page("/beans", title="Espresso News, Posts and Blogs")
+# async def beans(
+#     user: beanops.User = Depends(extract_user),
+#     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
+#     kind: str | None = Query(default=None)
+# ):
+#     log('beans', user_id=user, tag=tag, kind=kind)
+#     await vanilla.render_beans_page(user, tag, kind)
 
-@ui.page("/baristas", title="Espresso Shots")
-async def snapshot(user: User = Depends(extract_user)): 
-    log('baristas', user_id=user_id(user)) 
-    await vanilla.render_trending_snapshot(user)
+# @ui.page("/baristas", title="Espresso Shots")
+# async def snapshot(user: User|str = Depends(extract_user)): 
+#     log('baristas', user_id=user) 
+#     await vanilla.render_trending_snapshot(user)
 
 @ui.page("/baristas/{barista_id}", title="Espresso")
 async def barista(
-    user: User = Depends(extract_user),
+    user: User|str = Depends(extract_user),
     barista: Barista = Depends(validate_barista, use_cache=True)
 ): 
-    log('baristas', user_id=user_id(user), page_id=barista.id) 
+    log('baristas', user_id=user, page_id=barista.id) 
     await vanilla.render_barista_page(user, barista)
 
 @ui.page("/search", title="Espresso Search")
 async def search(
-    user: beanops.User = Depends(extract_user),
-    q: str = None,
+    user: beanops.User|str = Depends(extract_user),
+    query: str = None,
     acc: float = Query(ge=0, le=1, default=beanops.DEFAULT_ACCURACY),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     kind: str | None = Query(default=None),
     ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=beanops.DEFAULT_WINDOW)
 ):
-    log('search', user_id=user_id(user), q=q, acc=acc, ndays=ndays)
-    await vanilla.render_search(user, q, acc)
+    log('search', user_id=user, query=query, accuracy=acc, tags=tag, kind=kind, last_ndays=ndays)
+    await vanilla.render_search(user, query, acc, tag)
 
 @ui.page("/user/register", title="Espresso User Registration")
 async def register_user(userinfo: dict = Depends(extract_registration_info)):

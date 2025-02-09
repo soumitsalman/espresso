@@ -1,4 +1,6 @@
 import os
+from app.pybeansack.models import NEWS
+from app.pybeansack.mongosack import LATEST_AND_TRENDING
 
 # stuffs from azure/infrastructure
 DB_CONNECTION_STRING = os.getenv("DB_CONNECTION_STRING")
@@ -54,6 +56,69 @@ BASE_URL = os.getenv("BASE_URL")
 APP_NAME = os.getenv("APP_NAME")
 APP_STORAGE_SECRET = os.getenv("APP_STORAGE_SECRET")
 MODE = os.getenv("MODE")
+
+DEFAULT_ACCURACY = 0.8
+DEFAULT_WINDOW = 7
+MIN_WINDOW = 1
+MAX_WINDOW = 30
+DEFAULT_LIMIT = 10
+MIN_LIMIT = 1
+MAX_LIMIT = 100
+DEFAULT_KIND = NEWS
+MAX_ITEMS_PER_PAGE = 5
+MAX_PAGES = 10
+MAX_TAGS_PER_BEAN = 5
+MAX_RELATED_ITEMS = 5
+MAX_FILTER_TAGS = 7
+
+# NOTE: no need to change this one. these are the larger static categories
+DEFAULT_TOPIC_BARISTAS = [ 
+    "artificial-intelligence",
+    "automotive",
+    "aviation---aerospace",
+    "business---finance",
+    "career---professional-skills",
+    "cryptocurrency---blockchain",
+    "cybersecurity",    
+    "environment---clean-energy",
+    "food---health",
+    "gadgets---iot",
+    "government---politics",
+    "hpc---datacenters",
+    "leadership---people-management",
+    "logistics---transportation",
+    "robotics---manufacturing",
+    "science---mathematics",
+    "software-engineering",
+    "solar-energy",
+    "startups---vcs",
+    "video-games---virtual-reality"
+]
+
+# TODO: change this one, it is temporary. in future take the ones that are most popular
+DEFAULT_OUTLET_BARISTAS = [
+    "businessinsider",
+    "bloomberg",
+    "amazon",
+    "apple",
+    "google",
+    "hackernews",
+    "huggingface",                
+    "microsoft",
+    "finsmes",
+    "venturebeat",
+    "reddit"
+]
+
+# TODO: change this one, it is temporary. in future take the ones that are most popular
+DEFAULT_TAG_BARISTAS = [
+    "bitcoin",
+    "elon-musk",
+    "donald-trump",
+    "doge",
+    "nasa",
+    "spacex"
+]
 
 
 

@@ -14,6 +14,7 @@ from pymongo.collection import Collection
 TIMEOUT = 300000 # 3 mins
 DEFAULT_VECTOR_SEARCH_SCORE = 0.7
 DEFAULT_VECTOR_SEARCH_LIMIT = 1000
+MAX_CLUSTER_SIZE = 20 # this is kept as a multiplier to optimize search
 
 # names of db and collections
 BEANS = "beans"
@@ -166,45 +167,42 @@ class Beansack:
         return _deserialize_beans(self.beanstore.aggregate(pipeline))
 
     def vector_search_beans(self, 
-            query: str = None,
             embedding: list[float] = None, 
             min_score = None, 
             filter = None, 
             sort_by = None,
-            skip = None,
-            limit = DEFAULT_VECTOR_SEARCH_LIMIT, 
+            skip = 0,
+            limit = 0, 
             projection = None
         ) -> list[Bean]:
-        pipline = self._vector_search_pipeline(query, embedding, min_score, filter, sort_by, skip, limit, projection)
+        pipline = self._vector_search_pipeline(embedding, min_score, filter, sort_by, skip, limit, projection)
         return _deserialize_beans(self.beanstore.aggregate(pipeline=pipline))
     
-    def count_vector_search_beans(self, query: str = None, embedding: list[float] = None, min_score = DEFAULT_VECTOR_SEARCH_SCORE, filter: dict = None, limit = DEFAULT_VECTOR_SEARCH_LIMIT) -> int:
-        pipeline = self._count_vector_search_pipeline(query, embedding, min_score, filter, limit)
+    def count_vector_search_beans(self, embedding: list[float] = None, min_score = None, filter: dict = None, limit = 0) -> int:
+        pipeline = self._count_vector_search_pipeline(embedding, min_score, filter, limit)
         result = list(self.beanstore.aggregate(pipeline))
         return result[0]['total_count'] if result else 0
     
-    def text_search_beans(self, query: str, filter = None, sort_by = {K_SEARCH_SCORE: -1}, skip=0, limit=0, projection=None):
-        return _deserialize_beans(
-            self.beanstore.aggregate(
-                self._text_search_pipeline(query, filter=filter, sort_by=sort_by, skip=skip, limit=limit, projection=projection, for_count=False)))
+    def text_search_beans(self, query: str, filter = None, sort_by = None, skip=0, limit=0, projection=None):
+        pipeline = self._text_search_pipeline(query, filter, sort_by, skip, limit, projection, for_count=False)
+        return _deserialize_beans(self.beanstore.aggregate(pipeline=pipeline))
     
     def count_text_search_beans(self, query: str, filter = None, limit = 0):
         result = self.beanstore.aggregate(self._text_search_pipeline(query, filter=filter, sort_by=None, skip=0, limit=limit, projection=None, for_count=True))
         return next(iter(result), {'total_count': 0})['total_count'] if result else 0
     
-    def get_unique_beans(self, filter, sort_by = None, skip = 0, limit = 0, projection = None):
-        pipeline = self._unique_beans_pipeline(filter, sort_by=sort_by, skip=skip, limit=limit, projection=projection, for_count=False)
+    def query_beans_per_cluster(self, filter, sort_by = None, skip = 0, limit = 0, projection = None):
+        pipeline = self._query_beans_pipeline(filter, sort_by=sort_by, skip=skip, limit=limit, projection=projection, for_count=False)
         return _deserialize_beans(self.beanstore.aggregate(pipeline))
     
-    def count_unique_beans(self, filter, limit = 0):
-        pipeline = self._unique_beans_pipeline(filter, sort_by=None, skip=0, limit=limit, projection=None, for_count=True)
+    def count_beans_per_cluster(self, filter, limit = 0):
+        pipeline = self._query_beans_pipeline(filter, sort_by=None, skip=0, limit=limit, projection=None, for_count=True)
         result = self.beanstore.aggregate(pipeline)
         return next(iter(result), {'total_count': 0})['total_count'] if result else 0
     
-    def get_tags(self, beans_in_scope, exclude_from_result, skip = 0, limit = 0):
-        filter = {K_TAGS: {"$exists": True}}
-        if beans_in_scope:
-            filter.update(beans_in_scope)
+    def query_tags(self, filter, exclude_from_result = None, skip = 0, limit = 0):
+        match = {K_TAGS: {"$exists": True}}
+        if filter: match.update(filter)
         # flatten the tags within the filter
         # take the ones that show up the most
         # sort by the number of times the tags appear
@@ -214,43 +212,57 @@ class Beansack:
             {
                 "$group": {
                     "_id": "$tags",
-                    # "tags": {"$first": "$tags"},
-                    "trend_score": { "$sum": 1 },
-                    # "url": {"$first": "$url"} # this doesn't actually matter. this is just for the sake of datamodel
+                    "count": { "$sum": 1 }
                 }
-            }         
+            },
+            { "$sort": {"count": -1} }
         ]
         if exclude_from_result:
             pipeline.append({"$match": {"_id": {"$nin": exclude_from_result}}})
-        pipeline.append({"$sort": TRENDING})
         if skip:
             pipeline.append({"$skip": skip})    
         if limit:
             pipeline.append({"$limit": limit})   
         return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
-        # return _deserialize_beans(self.beanstore.aggregate(pipeline))
+    
+    def text_search_tags(self, query: str, filter = None, skip = 0, limit = 0):
+        match = {"$text": {"$search": query}}
+        if filter: match.update(filter)
+        pipeline = [
+            { "$match": match },
+            { "$unwind": "$tags" },
+            { 
+                "$group": { 
+                    "_id": "$tags", 
+                    "count": { "$sum": 1 } 
+                } 
+            },
+            { "$sort": {"count": -1} }
+        ]
+        if skip:
+            pipeline.append({"$skip": skip})    
+        if limit:
+            pipeline.append({"$limit": limit})   
+        return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
 
     def vector_search_tags(self, 
-            query: str = None,
             embedding: list[float] = None, 
             min_score = None, 
-            beans_in_scope = None, 
-            exclude_from_result = None,
-            skip = None,
-            limit = DEFAULT_VECTOR_SEARCH_LIMIT
+            filter = None, 
+            skip = 0,
+            limit = 0
         ) -> list[Bean]:
+        match = {K_TAGS: {"$exists": True}}
+        if filter: match.update(filter)
 
-        match_filter = {K_TAGS: {"$exists": True}}
-        if beans_in_scope:
-            match_filter.update(beans_in_scope)
         pipeline = [            
             {
                 "$search": {
                     "cosmosSearch": {
-                        "vector": embedding or self.embedder.embed_query(query),
+                        "vector": embedding,
                         "path":   K_EMBEDDING,
-                        "filter": match_filter,
-                        "k":      DEFAULT_VECTOR_SEARCH_LIMIT,
+                        "filter": match,
+                        "k":      (skip+limit)*MAX_CLUSTER_SIZE if (skip+limit) else DEFAULT_VECTOR_SEARCH_LIMIT,
                     },
                     "returnStoredSource": True
                 }
@@ -269,21 +281,16 @@ class Beansack:
             {
                 "$group": {
                     K_ID: "$tags",
-                    # "tags": {"$first": "$tags"},
-                    K_TRENDSCORE: { "$sum": 1 },
-                    # "url": {"$first": "$url"} # this doesn't actually matter. this is just for the sake of datamodel
+                    "count": { "$sum": 1 },
                 }
-            }            
+            },
+            { "$sort": {"count": -1} }
         ]
-        if exclude_from_result:
-            pipeline.append({"$match": {K_ID: {"$nin": exclude_from_result}}})
-        pipeline.append({"$sort": TRENDING})
         if skip:
             pipeline.append({"$skip": skip})
         if limit:
             pipeline.append({"$limit": limit})
         return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
-        # return _deserialize_beans(self.beanstore.aggregate(pipeline=pipeline))
 
     def get_cluster_sizes(self, urls: list[str]) -> list:
         pipeline = [            
@@ -312,7 +319,7 @@ class Beansack:
         ]    
         return [item for item in self.beanstore.aggregate(pipeline)]
     
-    def _unique_beans_pipeline(self, filter, sort_by, skip, limit, projection, for_count):
+    def _query_beans_pipeline(self, filter, sort_by, skip, limit, projection, for_count):
         pipeline = []
         if filter:
             pipeline.append({"$match": filter})
@@ -331,10 +338,9 @@ class Beansack:
             pipeline.append({"$project": projection})
         return pipeline
 
-    def _text_search_pipeline(self, text: str, filter, sort_by, skip, limit, projection, for_count):
-        match = {"$text": {"$search": text}}
-        if filter:
-            match.update(filter)
+    def _text_search_pipeline(self, query: str, filter, sort_by, skip, limit, projection, for_count):
+        match = {"$text": {"$search": query}}
+        if filter: match.update(filter)
 
         pipeline = [
             { "$match": match },            
@@ -356,16 +362,16 @@ class Beansack:
             pipeline.append({"$project": projection})
         return pipeline
    
-    def _vector_search_pipeline(self, text, embedding, min_score, filter, sort_by, skip, limit, projection):    
+    def _vector_search_pipeline(self, embedding, min_score, filter, sort_by, skip, limit, projection):    
         sort_by = sort_by or { "search_score": -1 }
         pipeline = [            
             {
                 "$search": {
                     "cosmosSearch": {
-                        "vector": embedding or self.embedder.embed_query(text),
+                        "vector": embedding,
                         "path":   K_EMBEDDING,
                         "filter": filter or {},
-                        "k":      DEFAULT_VECTOR_SEARCH_LIMIT if limit > 1 else 1, # if limit is 1, then we don't need to search for more than 1
+                        "k":      (skip+limit)*MAX_CLUSTER_SIZE if (skip+limit) else DEFAULT_VECTOR_SEARCH_LIMIT, # if limit is 1, then we don't need to search for more than 1
                     }
                 }
             },
@@ -393,8 +399,8 @@ class Beansack:
             pipeline.append({"$project": projection})
         return pipeline
     
-    def _count_vector_search_pipeline(self, text, embedding, min_score, filter, limit):
-        pipline = self._vector_search_pipeline(text, embedding, min_score, filter, None, None, limit, None)
+    def _count_vector_search_pipeline(self, embedding, min_score, filter, limit):
+        pipline = self._vector_search_pipeline(embedding, min_score, filter, None, 0, limit, None)
         pipline.append({ "$count": "total_count"})
         return pipline
     
@@ -498,31 +504,36 @@ class Beansack:
         barista = self.baristas.find_one({K_ID: id})
         if barista: return Barista(**barista)
 
-    def get_baristas(self, ids: list[str], projection: dict = {K_EMBEDDING: 0}):
+    def get_baristas(self, ids: list[str], projection: dict = None):
         filter = {K_ID: {"$in": ids}} if ids else {}
         return [Barista(**barista) for barista in self.baristas.find(filter, sort={K_TITLE: 1}, projection=projection)]
     
-    def sample_baristas(self, limit: int):
+    def sample_baristas(self, limit: int, projection: dict = None):
         pipeline = [
             { "$match": {"public": True} },
-            { "$sample": {"size": limit} },
-            { "$project": {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1} }
+            { "$sample": {"size": limit} }
         ]
+        if projection: pipeline.append({ "$project": projection })
+
         return [Barista(**barista) for barista in self.baristas.aggregate(pipeline)]
      
     def get_following_baristas(self, user: User):
         following = self.users.find_one({K_ID: user.email}, {K_FOLLOWING: 1})
-        if following:
-            return self.get_baristas(following["following"])
+        if following: return list(following["following"])
 
-    def search_baristas(self, query: str|list[str]):
+    def search_baristas(self, query: str|list[str], projection: dict = None):
         pipeline = [
-            {   "$match": {"$text": {"$search": query if isinstance(query, str) else " ".join(query)}} },            
+            {   
+                "$match": {
+                    "$text": {"$search": query if isinstance(query, str) else " ".join(query)},
+                    "public": True
+                } 
+            },            
             {   "$addFields":  { "search_score": {"$meta": "textScore"}} },
-            {   "$project": {"embedding": 0} },
             {   "$sort": {"search_score": -1} },
             {   "$limit": 10 }     
-        ]        
+        ]    
+        if projection: pipeline.append({ "$project": projection })
         return [Barista(**barista) for barista in self.baristas.aggregate(pipeline)]
     
     def publish(self, barista_id: str):
