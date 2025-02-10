@@ -70,6 +70,7 @@ MAX_PAGES = 10
 MAX_TAGS_PER_BEAN = 5
 MAX_RELATED_ITEMS = 5
 MAX_FILTER_TAGS = 7
+DEFAULT_SORT_BY = "Latest"
 
 # NOTE: no need to change this one. these are the larger static categories
 DEFAULT_TOPIC_BARISTAS = [ 

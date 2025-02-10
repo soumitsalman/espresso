@@ -9,22 +9,20 @@ from nicegui import ui
 import inflect
 
 KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
-SORT_BY_LABELS = ["Latest", "Trending"]
-DEFAULT_SORT_BY = "Latest"
 
 REMOVE_FILTER = "remove-filter"
 CONTENT_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=primary"
 
-sort_by_value = lambda value: LATEST_AND_TRENDING if value == "Trending" else NEWEST_AND_TRENDING
+
 
 async def render_home(user):
     tags, kind, sort_by = None, DEFAULT_KIND, DEFAULT_SORT_BY # starting default 
 
     def retrieve_beans(start, limit):
         log("home", user_id=user, tags=tags, kinds=kind, sort_by=sort_by, start=start, limit=limit)
-        return beanops.get_beans_per_group(tags, kind, None, sort_by_value(sort_by), start, limit)
+        return beanops.get_beans_per_group(tags, kind, None, sort_by, start, limit)
 
     def apply_retrieval_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
         nonlocal tags, kind, sort_by
@@ -73,7 +71,7 @@ async def render_custom_page(user: User, include_tags: str|list[str], sources: s
 
     def retrieve_beans(start, limit):
         log("custom_barista", user_id=user, page_id=page_title, tags=tags, kinds=kind, sources=sources, sort_by=sort_by, start=start, limit=limit)
-        return beanops.search_beans(query=None, accuracy=None, tags=tags, kinds=kind, sources=sources, last_ndays=None, sort_by=sort_by_value(sort_by), start=start, limit=limit)
+        return beanops.search_beans(query=None, accuracy=None, tags=tags, kinds=kind, sources=sources, last_ndays=None, sort_by=sort_by, start=start, limit=limit)
 
     def apply_retrieval_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
         nonlocal tags, kind, sort_by    
@@ -94,16 +92,16 @@ async def render_custom_page(user: User, include_tags: str|list[str], sources: s
     )
 
 async def render_barista_page(user: User, barista: Barista):    
-    tags, kind, sort_by = barista.query_tags, beanops.DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
+    tags, kind, sort_by = None, beanops.DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
    
     def retrieve_beans(start, limit):
         log("barista", user_id=user, page_id=barista.id, tags=tags, kinds=kind, sort_by=sort_by, start=start, limit=limit)
-        return beanops.get_barista_beans(barista, tags, kind, sort_by_value(sort_by), start, limit)
+        return beanops.get_barista_beans(barista, tags, kind, sort_by, start, limit)
 
     def apply_retrieval_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None) -> Callable:
         nonlocal tags, kind, sort_by
         if filter_tags:
-            tags = [barista.query_tags, filter_tags] if filter_tags != REMOVE_FILTER else barista.query_tags
+            tags = filter_tags if filter_tags != REMOVE_FILTER else None
         if filter_kind:
             kind = filter_kind if filter_kind != REMOVE_FILTER else None
         if filter_sort_by:
@@ -154,7 +152,7 @@ def _render_content(user, get_tags_func: Callable, apply_retrieval_filter_func: 
             on_change=lambda e: render_beans_panel.refresh(filter_kind=(e.sender.value or REMOVE_FILTER))).props(TOGGLE_OPTIONS_PROPS)
         
         ui.toggle(
-            options=SORT_BY_LABELS, 
+            options=list(beanops.SORT_BY.keys()), 
             value=DEFAULT_SORT_BY, 
             on_change=lambda e: render_beans_panel.refresh(filter_sort_by=e.sender.value)).props("unelevated rounded no-caps color=dark")
     

@@ -262,7 +262,7 @@ async def custom_barista(
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
-    log('barista', user_id=user, tags=tag, sources=source)
+    log('custom_barista', user_id=user, tags=tag, sources=source)
     await vanilla.render_custom_page(user, tag, source)
 
 @ui.page("/search", title="Espresso Search")

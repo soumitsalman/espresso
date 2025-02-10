@@ -6,7 +6,7 @@ from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
 
-
+SORT_BY = {"Latest": NEWEST_AND_TRENDING, "Trending": LATEST_AND_TRENDING}
 PROJECTION = {K_EMBEDDING: 0, K_TEXT:0, K_ID: 0}
 
 db: Beansack = None
@@ -42,11 +42,12 @@ def get_beans(urls: str|list[str], tags: str|list[str]|list[list[str]], kinds: s
         urls=urls, 
         created_in_last_ndays=last_ndays, 
         updated_in_last_ndays=None)
-    return db.get_beans(filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
+    return db.get_beans(filter=filter, sort_by=SORT_BY[sort_by], skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|list[str], sort_by, start: int, limit: int):
     """get one bean per cluster and per source"""
+    sort_by = SORT_BY[sort_by]
     pipeline = [
         { "$match": _create_filter(tags, kinds, sources, None, None, None) },
         { "$sort": sort_by },
@@ -102,6 +103,7 @@ def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_barista_beans(barista: Barista, filter_tags: str|list[str], filter_kinds: str|list[str], sort_by, start: int, limit: int):
+    sort_by = SORT_BY[sort_by]
     # if the barista is primarily based on specific urls, then just search for those
     if barista.query_urls: return db.get_beans(filter=_create_filter(filter_tags, filter_kinds, None, barista.query_urls, None, None), sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
     
@@ -149,7 +151,7 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
     
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
     if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
-    return db.query_beans_per_cluster(filter=_create_filter(tags, kinds, sources, None, last_ndays, None), sort_by=sort_by or NEWEST_AND_TRENDING, skip=start, limit=limit, projection=PROJECTION)
+    return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY[sort_by] or NEWEST_AND_TRENDING, skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
@@ -197,7 +199,7 @@ def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[lis
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_related(url: str, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int):
-    filter = _create_filter(tags, kinds, sources, None, last_ndays, None, None)
+    filter = _create_filter(tags, kinds, sources, None, last_ndays, None)
     return db.sample_related_beans(url=url, filter=filter, limit=limit) 
 
 BARISTAS_PROJECTION = {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1, "public": 1, "owner": 1}

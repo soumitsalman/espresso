@@ -234,31 +234,42 @@ def render_beans_as_paginated_list(user: User, load_beans: Callable, count_items
     return panel
 
 def render_bean_with_related(user: User, bean: Bean):
-    # NOTE: temporarily disabling the loading of related beans
-    with_related_beans = [bean] # + beanops.get_related(url=bean.url, tags=None, kinds=None, sources=None, last_ndays=None, start=0, limit=MAX_RELATED_ITEMS)
-    return render_swipable_beans(user, with_related_beans)
+    related_beans: list[Bean] = None
 
-def render_swipable_beans(user: User, beans: list[Bean]):
+    def render_bean_as_slide(item: Bean, expanded: bool, on_read: Callable):
+        with ui.carousel_slide(item.url).classes("w-full m-0 p-0 no-wrap"):
+            render_bean(user, item, expanded, on_read).classes("w-full m-0 p-0")
+
+    def on_read():
+        nonlocal related_beans
+        if related_beans: return
+        related_beans = beanops.get_related(url=bean.url, tags=None, kinds=None, sources=None, last_ndays=None, limit=MAX_RELATED_ITEMS)
+        with carousel:
+            for item in related_beans:
+                render_bean_as_slide(item, True, None) # NOTE: keep them expanded by default and no need for callback
+
     with ui.item() as view:  # Added rounded-borders class here
         with ui.carousel(
             animated=True, 
             arrows=True, 
-            value=beans[0].url,
-            # on_value_change=lambda e: log("read", user_id=user, url=e.sender.value)
-        ).props("swipeable control-color=secondary").classes("rounded-borders w-full h-full"):
-            for i, bean in enumerate(beans):
-                with ui.carousel_slide(bean.url).classes("w-full m-0 p-0 no-wrap"):  # Added rounded-borders class here
-                    render_bean(user, bean, i!=0).classes("w-full m-0 p-0")
+            value=bean.url,
+            on_value_change=lambda e: log("read", user_id=user, url=e.sender.value)
+        ).props("swipeable control-color=secondary").classes("rounded-borders w-full h-full") as carousel:
+            render_bean_as_slide(bean, False, on_read) # NOTE: closed by default and make a callback to load related beans
+            
     return view
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
-render_bean = lambda user, bean, expanded: render_expandable_bean(user, bean, expanded)
+render_bean = lambda user, bean, expanded, on_read: render_expandable_bean(user, bean, expanded, on_read)
+def render_expandable_bean(user: User, bean: Bean, expanded: bool = False, on_read: Callable = None):
 
-def render_expandable_bean(user: User, bean: Bean, expanded: bool = False):
-    with ui.expansion(
-        value=expanded,
-        on_value_change=lambda e: log("read", user_id=user, url=bean.url) if e.sender.value else None
-    ).props("dense hide-expand-icon").classes("bg-dark rounded-borders") as expansion:
+    async def on_expanded():
+        if not expansion.value: return
+        log("read", user_id=user, url=bean.url)
+        if on_read: 
+            await run.io_bound(on_read)
+
+    with ui.expansion(value=expanded, on_value_change=on_expanded).props("dense hide-expand-icon").classes("bg-dark rounded-borders") as expansion:
         header = expansion.add_slot("header")
         with header:
             render_bean_header(user, bean).classes(add="p-0")
@@ -304,7 +315,7 @@ def render_bean_body(user: User, bean: Bean):
     return view
 
 def render_bean_tags(user: User, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_barista_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+    make_tag = lambda tag: ui.link(tag, target=create_search_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
         [make_tag(tag) for tag in random.sample(bean.tags, min(MAX_TAGS_PER_BEAN, len(bean.tags)))]
     return view
