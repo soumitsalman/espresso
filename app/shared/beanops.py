@@ -151,7 +151,7 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
     
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
     if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
-    return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY[sort_by] or NEWEST_AND_TRENDING, skip=start, limit=limit, projection=PROJECTION)
+    return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
