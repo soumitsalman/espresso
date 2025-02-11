@@ -6,6 +6,7 @@ from app.pybeansack.models import User
 from app.shared.env import *
 
 # cache settings
+HALF_HOUR = 1800
 ONE_HOUR = 3600
 FOUR_HOURS = 14400
 ONE_DAY = 86400

@@ -358,6 +358,22 @@ def render_bean_actions(user: User, bean: Bean):
             ).props("flat size=sm")
     return view  
 
+# def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
+
+#     async def render():
+#         tags = await run.io_bound(load_tags)
+#         holder.clear()
+#         if not tags: return
+#         with holder:
+#             with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)).props("vertical outside-arrows mobile-arrows shrink active-bg-color=primary indicator-color=transparent").classes("q-mt-md"):
+#                 [ui.tab(tag).props("no-caps") for tag in tags]
+
+#     with ui.element() as holder:
+#         ui.skeleton("rect", width="100%").classes("w-full h-full")
+
+#     background_tasks.create_lazy(render(), name=f"tags-{now()}")
+#     return holder
+
 def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
     selected_tags = []
     def change_tag_selection(tag: str, selected: bool):        

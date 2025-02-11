@@ -195,19 +195,13 @@ async def render_search(user: User, query: str = None, accuracy: float = None, q
 
     if not (query or query_tags):  return
 
-    with ui.row(wrap=False, align_items="center").classes("w-full justify-between"):    
-        # NOTE: temporarily removing the accuracy filter                     
-        # with ui.label("Accuracy").classes("w-full"):
-        #     accuracy_filter = ui.slider(
-        #         min=0.1, max=1.0, step=0.05, 
-        #         value=(accuracy or beanops.DEFAULT_ACCURACY), 
-        #         on_change=debounce(lambda: render_result_panel.refresh(filter_accuracy=accuracy_filter.value), 1.5)).props("label-always").tooltip("We will be back")
-
-        ui.toggle(
-            options=KIND_LABELS, 
-            value=beanops.DEFAULT_KIND, 
-            on_change=lambda e: render_result_panel.refresh(filter_kind=e.sender.value or REMOVE_FILTER)).props("unelevated rounded no-caps color=dark toggle-color=primary")              
-
+    with ui.row(wrap=False, align_items="center").classes("w-full justify-between"):  
+        with ui.label("Accuracy").classes("w-1/2"):
+            accuracy_filter = ui.slider(
+                min=0.1, max=1.0, step=0.05, 
+                value=(accuracy or beanops.DEFAULT_ACCURACY), 
+                on_change=debounce(lambda: render_result_panel.refresh(filter_accuracy=accuracy_filter.value), 1.5)).props("label-always").tooltip("We will be back")
+        
         with ui.label().classes("w-1/2") as last_ndays_label:
             last_ndays_filter = ui.slider(
                 min=-30, max=-1, step=1, value=-last_ndays,
@@ -217,7 +211,12 @@ async def render_search(user: User, query: str = None, accuracy: float = None, q
     render_filter_tags(
         load_tags=lambda: beanops.search_tags(query=query, accuracy=accuracy, tags=tags, kinds=None, sources=None, last_ndays=last_ndays, start=0, limit=MAX_FILTER_TAGS), 
         on_selection_changed=lambda selected_tags: render_result_panel.refresh(filter_tags=(selected_tags or REMOVE_FILTER))).classes("w-full")
-    
+
+    ui.toggle(
+        options=KIND_LABELS, 
+        value=beanops.DEFAULT_KIND, 
+        on_change=lambda e: render_result_panel.refresh(filter_kind=e.sender.value or REMOVE_FILTER)).props("unelevated rounded no-caps color=dark toggle-color=primary")  
+
     render_result_panel(filter_accuracy=None, filter_tags=None, filter_kind=None, filter_last_ndays=None)
     render_footer()
 

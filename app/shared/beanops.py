@@ -5,19 +5,22 @@ from app.pybeansack.mongosack import Beansack, LATEST_AND_TRENDING, NEWEST_AND_T
 from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
+from llama_cpp import Llama
+import threading
 
 SORT_BY = {"Latest": NEWEST_AND_TRENDING, "Trending": LATEST_AND_TRENDING}
 PROJECTION = {K_EMBEDDING: 0, K_TEXT:0, K_ID: 0}
 
 db: Beansack = None
 embedder = None
+embedder_lock = threading.Lock()
 
 def initiatize(db_conn: str, db_name: str = "beansack", embedder_path: str = None):
     global db, embedder
     db = Beansack(db_conn, db_name)
     if embedder_path:
-        from sentence_transformers import SentenceTransformer
-        embedder = SentenceTransformer(embedder_path, device="cpu", trust_remote_code=True, tokenizer_kwargs={"truncation": True})
+        with embedder_lock:
+            embedder = Llama(model_path=embedder_path, n_ctx=512, n_threads=1, embedding=True, verbose=False)
 
 @cached(max_size=1, ttl=ONE_WEEK)
 def get_all_kinds():
@@ -29,7 +32,7 @@ def get_all_sources():
 def get_all_tags():
     return db.beanstore.distinct(K_TAGS)
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def _get_bean(url: str) -> Bean|None:
     item = db.beanstore.find_one(filter={K_ID: url}, projection={K_EMBEDDING: 1, K_URL: 1, K_ID: 1, K_TAGS: 1})
     if item: return Bean(**item)
@@ -101,7 +104,7 @@ def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|
     ]
     return [Bean(**item) for item in db.beanstore.aggregate(pipeline)]
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_barista_beans(barista: Barista, filter_tags: str|list[str], filter_kinds: str|list[str], sort_by, start: int, limit: int):
     sort_by = SORT_BY[sort_by]
     # if the barista is primarily based on specific urls, then just search for those
@@ -133,7 +136,7 @@ def get_barista_tags(barista: Barista, start: int, limit: int):
         return db.vector_search_tags(embedding=barista.query_embedding, filter=filter, skip=start, limit=limit)
     return db.query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     if is_valid_url(query): 
@@ -150,7 +153,7 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
         return db.vector_search_beans(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit, projection=PROJECTION)
     
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
+    if query: return db.vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
     return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
@@ -169,7 +172,7 @@ def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]]
         return db.vector_search_tags(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit)
 
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.text_search_tags(query=query, filter=filter, skip=start, limit=limit)  
+    if query: return db.vector_search_tags(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit)  
     return db.query_tags(filter=filter, exclude_from_result=tags, skip=start, limit=limit)
     
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
@@ -188,15 +191,9 @@ def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[lis
         return db.count_vector_search_beans(embedding=bean.embedding, min_score=accuracy, filter=filter, limit=limit)
 
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.count_text_search_beans(query=query, filter=filter, limit=limit)  
+    if query: return db.count_vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, limit=limit)  
     return db.count_beans_per_cluster(filter=filter, limit=limit)
     
-# # @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-# def _vector_search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int):
-#     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""
-#     filter=_create_filter(tags, kinds, sources, last_ndays, None, None, None)  
-#     return db.vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit, projection=PROJECTION) 
-
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_related(url: str, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int):
     filter = _create_filter(tags, kinds, sources, None, last_ndays, None)
@@ -251,7 +248,7 @@ def get_following_baristas(user: User|str|None):
 def get_barista_recommendations(user: User|str|None):
     return db.sample_baristas(5, BARISTAS_PROJECTION)
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_baristas(user: User|str|None, query: str):
     if user: log("search baristas", user_id=user, query=query)
     return db.search_baristas(query, BARISTAS_PROJECTION)
@@ -314,9 +311,11 @@ def _create_filter(
     return filter
 
 # this is done for caching
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def embed(query: str) -> list[float]:
-    return embedder.encode(query)
+    with embedder_lock:
+        result = embedder.create_embedding(query)
+        return result['data'][0]['embedding']
 
 field_value = lambda items: {"$in": items} if isinstance(items, list) else items
 lower_case = lambda items: {"$in": [item.lower() for item in items]} if isinstance(items, list) else items.lower()

@@ -52,7 +52,7 @@ def decode_jwt_token(token: str):
 
 @app.on_startup
 def initialize_server():    
-    beanops.initiatize(DB_CONNECTION_STRING, DB_NAME)
+    beanops.initiatize(DB_CONNECTION_STRING, DB_NAME, EMBEDDER_PATH)
 
     oauth.register(
         "google",

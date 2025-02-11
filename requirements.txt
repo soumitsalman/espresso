@@ -17,3 +17,4 @@ memoization
 azure-monitor-opentelemetry
 python-dotenv
 inflect
+llama-cpp-python
