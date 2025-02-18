@@ -224,7 +224,7 @@ async def render_registration(userinfo: dict):
     render_header(None)
 
     async def success():
-        beanops.db.create_user(userinfo, beanops.DEFAULT_BARISTAS)
+        beanops.db.create_user(userinfo, DEFAULT_TOPIC_BARISTAS)
         ui.navigate.to("/")
 
     with ui.card(align_items="stretch").classes("self-center"):
