@@ -133,7 +133,7 @@ class SwitchButton(ui.button):
     switched_text: str
     unswitched_text: str
 
-    def __init__(self, value=False, unswitched_text: str = "On", switched_text: str = "Off", unswitched_icon="unfold_more", switched_icon="unfold_less", *args, **kwargs):        
+    def __init__(self, value=False, unswitched_text: str = None, switched_text: str = None, unswitched_icon="unfold_more", switched_icon="unfold_less", *args, **kwargs):        
         super().__init__(unswitched_text, icon=unswitched_icon, *args, **kwargs)
         self.value = value
         self.switched_text = switched_text

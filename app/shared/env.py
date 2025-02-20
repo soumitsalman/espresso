@@ -56,7 +56,7 @@ APP_NAME = os.getenv("APP_NAME")
 APP_STORAGE_SECRET = os.getenv("APP_STORAGE_SECRET")
 MODE = os.getenv("MODE")
 
-DEFAULT_ACCURACY = 0.8
+DEFAULT_ACCURACY = 0.7
 DEFAULT_WINDOW = 7
 MIN_WINDOW = 1
 MAX_WINDOW = 30
@@ -69,7 +69,7 @@ MAX_PAGES = 10
 MAX_TAGS_PER_BEAN = 5
 MAX_RELATED_ITEMS = 5
 MAX_FILTER_TAGS = 7
-DEFAULT_SORT_BY = "Latest"
+DEFAULT_SORT_BY = "Trending"
 
 # NOTE: no need to change this one. these are the larger static categories
 DEFAULT_TOPIC_BARISTAS = [ 

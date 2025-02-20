@@ -107,19 +107,19 @@ def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_barista_beans(barista: Barista, filter_tags: str|list[str], filter_kinds: str|list[str], sort_by, start: int, limit: int):
     sort_by = SORT_BY[sort_by]
-    # if the barista is primarily based on specific urls, then just search for those
-    if barista.query_urls: return db.get_beans(filter=_create_filter(filter_tags, filter_kinds, None, barista.query_urls, None, None), sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
-    
     filter=_create_filter(
         tags = [filter_tags, barista.query_tags], 
         kinds = filter_kinds or barista.query_kinds, 
         sources = barista.query_sources, 
-        urls = None,
+        urls = barista.query_urls,
         created_in_last_ndays = None, 
         updated_in_last_ndays = None
     )
-    if barista.query_embedding: return db.vector_search_beans(embedding=barista.query_embedding, filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
-    return db.query_beans_per_cluster(filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
+    # if the barista is primarily based on specific urls, then just search for those
+    if barista.query_urls: return db.get_beans(filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
+    if barista.query_embedding: return db.vector_search_beans(embedding=barista.query_embedding, min_score=barista.query_distance or DEFAULT_ACCURACY, filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)
+    if barista.query_tags or barista.query_sources: return db.query_beans_per_cluster(filter=filter, sort_by=sort_by, skip=start, limit=limit, projection=PROJECTION)   
+    return []
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_barista_tags(barista: Barista, start: int, limit: int):
@@ -132,9 +132,8 @@ def get_barista_tags(barista: Barista, start: int, limit: int):
         created_in_last_ndays = None, 
         updated_in_last_ndays = None        
     )
-    if barista.query_embedding:
-        return db.vector_search_tags(embedding=barista.query_embedding, filter=filter, skip=start, limit=limit)
-    return db.query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
+    if barista.query_embedding: return db.vector_search_tags(embedding=barista.query_embedding, min_score=barista.query_distance or DEFAULT_ACCURACY, filter=filter, skip=start, limit=limit)
+    if barista.query_urls or barista.query_tags or barista.query_sources: return db.query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -154,7 +153,8 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
     
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
     if query: return db.vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit, projection=PROJECTION)    
-    return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, projection=PROJECTION)
+    if tags or sources: return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, projection=PROJECTION)
+    return []
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
@@ -192,7 +192,8 @@ def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[lis
 
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
     if query: return db.count_vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, limit=limit)  
-    return db.count_beans_per_cluster(filter=filter, limit=limit)
+    if tags or sources: return db.count_beans_per_cluster(filter=filter, limit=limit)
+    return 0
     
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_related(url: str, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int):
@@ -212,8 +213,7 @@ def get_baristas(ids: list[str]):
     return [Barista(**barista) for barista in result]
 
 # @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-def get_following_baristas(user: User|str|None):
-    if not isinstance(user, User): return
+def get_following_baristas(user: User):
     pipeline = [
         {
             "$match": {K_ID: user.email}
@@ -245,37 +245,16 @@ def get_following_baristas(user: User|str|None):
     return [Barista(**barista) for barista in db.users.aggregate(pipeline)]
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_barista_recommendations(user: User|str|None):
+def get_barista_recommendations(context: NavigationContext):
     return db.sample_baristas(5, BARISTAS_PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
-def search_baristas(user: User|str|None, query: str):
-    if user: log("search baristas", user_id=user, query=query)
+def search_baristas(query: str):
     return db.search_baristas(query, BARISTAS_PROJECTION)
 
-def toggle_bookmark(user: User|str, bean: Bean):
-    if db.is_bookmarked(user, bean.url):
-        db.unbookmark(user, bean.url)   
-        log("unbookmarked", user_id=user, url=bean.url)         
-    else:
-        db.bookmark(user, bean.url)
-        log("bookmarked", user_id=user, url=bean.url)
-
-def toggle_publish(user: User|str, barista: Barista):
-    if db.is_published(barista.id):
-        db.unpublish(barista.id)
-        log("unpublished", user_id=user, page_id=barista.id)
-    else:
-        db.publish(barista.id)
-        log("published", user_id=user, page_id=barista.id)
-        
-def toggle_follow(user: User|str, barista: Barista):
-    if barista.id not in user.following:
-        db.follow_barista(user.email, barista.id)
-        log("followed", user_id=user, page_id=barista.id)
-    else:
-        db.unfollow_barista(user.email, barista.id)
-        log("unfollowed", user_id=user, page_id=barista.id)
+def is_bookmarked(context: NavigationContext, url: str):
+    if not context.is_registered: return False
+    return db.is_bookmarked(context.user, url)
 
 def _create_filter(
         tags: str|list[str]|list[list[str]], 

@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 import humanize
 from urllib.parse import urlparse
 import logging
-from app.pybeansack.models import User
+from icecream import ic
+from app.pybeansack.models import Barista, User
 from app.shared.env import *
 
 # cache settings
@@ -15,16 +16,97 @@ CACHE_SIZE = 100
 
 logger = logging.getLogger(APP_NAME)
 
-def log(function, **kwargs):    
+# this is the user navigation and access context that also arbitrates RBAC
+# TODO: move this to a different file
+class NavigationContext:
+    user: User|str|None = None
+    page: Barista|str = None
+    
+    filter_tags: list[str]|None = None
+    filter_kind: str|None = None
+    filter_sort_by: str|None = None
+
+    search_query: str|None = None
+    search_tags: list[str]|None = None
+    search_sources: list[str]|None = None
+    search_accuracy: float|None = None
+    search_ndays: int|None = None
+
+    def __init__(self, page: Barista|str, user: User|str):
+        self.page = page
+        self.user = user
+        
+    @property
+    def user_id(self):
+        if isinstance(self.user, User): return self.user.email
+        if isinstance(self.user, str): return self.user
+        if isinstance(self.user, dict): return self.user["email"]
+
+    @property
+    def page_id(self):
+        if isinstance(self.page, Barista): return self.page.id
+        if isinstance(self.page, str): return self.page
+
+    @property
+    def is_registered(self):
+        return isinstance(self.user, User)
+    
+    @property
+    def is_barista(self):
+        return isinstance(self.page, Barista)
+
+    @property
+    def has_read_permission(self):
+        # anyone has access to public baristas
+        # if the barista is marked as private, then only the owner can access it
+        # which means if this is not a registered user, then user does not have access to the barista
+        if not self.is_barista: return True
+        if self.page.public: return True
+        return (self.user.email == self.page.owner) if (self.is_registered) else False
+
+    @property
+    def has_publish_permission(self):
+        # only barista pages can be published
+        # only registered user that owns the barista can publish
+        if not self.is_registered: return False
+        if not self.is_barista: return False
+        return self.user.email == self.page.owner
+
+    @property
+    def has_follow_permission(self):
+        # anyone can follow public baristas
+        # if the barista is marked as private, then only the owner can follow it
+        if not self.is_registered: return False
+        if not self.is_barista: return False
+        if self.page.public: return True
+        return self.user.email == self.page.owner
+    
+    @property
+    def is_following(self):
+        if not self.is_registered: return False
+        if not self.is_barista: return False
+        return self.page.id in self.user.following
+
+    def log(self, action, **kwargs):    
+        extra = {
+            "user_id": self.user_id,
+            "page_id": self.page_id,
+            "tags": str(self.filter_tags) if self.filter_tags else None,
+            "kinds": str(self.filter_kind) if self.filter_kind else None,
+            "sort_by": self.filter_sort_by,
+            "query": self.search_query,
+            "sources": str(self.search_sources) if self.search_sources else None,
+            "accuracy": self.search_accuracy,
+            "ndays": self.search_ndays
+        }
+        if kwargs:
+            extra.update(kwargs)
+        log(action, **extra)
+
+def log(function, **kwargs):   
     # transform the values before logging for flat tables
-    if "user_id" in kwargs:
-        kwargs["user_id"] = user_id(kwargs["user_id"])
     kwargs = {key: (str(value) if isinstance(value, list) else value) for key, value in kwargs.items() if value}
     logger.info(function, extra=kwargs)
-
-def user_id(user):
-    if isinstance(user, User): return user.email
-    if isinstance(user, str): return user
 
 is_valid_url = lambda url: urlparse(url).scheme in ["http", "https"]
 favicon = lambda bean: "https://www.google.com/s2/favicons?domain="+urlparse(bean.url).netloc

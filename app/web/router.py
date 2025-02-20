@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 
 from app.web import vanilla
 from app.pybeansack.models import User, Barista
-from app.shared.utils import log
+from app.shared.utils import NavigationContext, log
 from app.shared import beanops
 
 import jwt
@@ -98,7 +98,7 @@ def initialize_server():
         user_agent=APP_NAME
     )    
     
-    log("server_initialized")
+    logger.info("server_initialized")
 
 def validate_barista(barista_id: str) -> Barista:
     barista_id = barista_id.lower()
@@ -137,6 +137,19 @@ def extract_user():
         return default_id
     return user
 
+def extract_page_context(page_id: str) -> NavigationContext:
+    return NavigationContext(page_id, extract_user())
+
+def extract_barista_context(barista_id: str) -> NavigationContext:
+    barista = beanops.db.get_barista(barista_id.lower())
+    if not barista:
+        raise HTTPException(status_code=404, detail=f"{barista_id} not found")
+    
+    ctx = NavigationContext(barista, extract_user())
+    if not ctx.has_read_permission:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return ctx
+
 def logged_in_user():
     user = extract_user()
     if not user:
@@ -160,12 +173,12 @@ def process_oauth_result(result: dict):
         app.storage.browser[REGISTRATION_INFO_KEY] = result['userinfo']
         return RedirectResponse("/user/register")
 
-def extract_registration_info():
+def extract_registration_context():
     val = app.storage.browser.get(REGISTRATION_INFO_KEY)
     if not val:
         raise HTTPException(status_code=401, detail="Unauthorized")
     del app.storage.browser[REGISTRATION_INFO_KEY]
-    return val
+    return NavigationContext("registration", val)
 
 @app.get("/oauth/google/login")
 async def google_oauth_login(request: Request):
@@ -237,50 +250,40 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
     return FileResponse(image_id, media_type="image/png")
 
 @ui.page("/", title="Espresso")
-async def home(user: beanops.User|str = Depends(extract_user)):  
-    log('home', user_id=user)
-    await vanilla.render_home(user)
-
-
-
-# @ui.page("/baristas", title="Espresso Shots")
-# async def snapshot(user: User|str = Depends(extract_user)): 
-#     log('barista', user_id=user) 
-#     await vanilla.render_trending_snapshot(user)
+async def home(context: NavigationContext = Depends(lambda: extract_page_context("home"))):  
+    await vanilla.render_home(context)
 
 @ui.page("/baristas/{barista_id}", title="Espresso")
-async def barista(
-    user: User|str = Depends(extract_user),
-    barista: Barista = Depends(validate_barista, use_cache=True)
-): 
-    log('barista', user_id=user, page_id=barista.id) 
-    await vanilla.render_barista_page(user, barista)
+async def barista(context: NavigationContext = Depends(extract_barista_context)): 
+    await vanilla.render_barista_page(context)
 
 @ui.page("/baristas", title="Espresso News, Posts and Blogs")
 async def custom_barista(
-    user: beanops.User = Depends(extract_user),
+    context: NavigationContext = Depends(lambda: extract_page_context("cutom_barista")),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
-    log('custom_barista', user_id=user, tags=tag, sources=source)
-    await vanilla.render_custom_page(user, tag, source)
+    context.search_tags = tag
+    context.search_sources = source
+    await vanilla.render_custom_page(context)
 
 @ui.page("/search", title="Espresso Search")
 async def search(
-    user: beanops.User|str = Depends(extract_user),
+    context: NavigationContext = Depends(lambda: extract_page_context("search")),
     query: str = None,
     acc: float = Query(ge=0, le=1, default=beanops.DEFAULT_ACCURACY),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-    kind: str | None = Query(default=None),
     ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=beanops.DEFAULT_WINDOW)
 ):
-    log('search', user_id=user, query=query, accuracy=acc, tags=tag, kind=kind, last_ndays=ndays)
-    await vanilla.render_search(user, query, acc, tag)
+    context.search_query = query
+    context.search_accuracy = acc
+    context.search_tags = tag
+    context.search_ndays = ndays
+    await vanilla.render_search(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
-async def register_user(userinfo: dict = Depends(extract_registration_info)):
-    log('register_user', user_id=userinfo['email'])
-    await vanilla.render_registration(userinfo)
+async def register_user(context: NavigationContext = Depends(extract_registration_context)):
+    await vanilla.render_registration(context)
     
 GOOGLE_ANALYTICS_SCRIPT = '''
 <!-- Google tag (gtag.js) -->

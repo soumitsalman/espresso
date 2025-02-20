@@ -139,6 +139,7 @@ class Barista(BaseModel):
     created: Optional[datetime] = Field(default_factory=datetime.now)
     owner: Optional[str] = Field(default=SYSTEM)
     public: Optional[bool] = Field(default=False)
+    related: Optional[list[str]] = Field(default=None)
     
     query_urls: Optional[list[str]] = Field(default=None, alias="urls")
     query_kinds: Optional[list[str]] = Field(default=None, alias="kinds")
