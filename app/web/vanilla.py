@@ -58,7 +58,7 @@ async def render_home(context: NavigationContext):
 #     render_footer()
 
 async def render_barista_page(context: NavigationContext):    
-    barista, context.filter_tags, context.filter_kind, context.filter_sort_by = context.page, None, beanops.DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
+    barista, context.filter_tags, context.filter_kind, context.filter_sort_by = context.page, None, DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
    
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
@@ -127,11 +127,11 @@ def render_content(context: NavigationContext, get_tags_func: Callable, apply_fi
         ui.toggle(
             options=KIND_LABELS,
             value=DEFAULT_KIND,
-            on_change=lambda e: render_beans_panel.refresh(filter_kind=(e.sender.value or REMOVE_FILTER))).props(TOGGLE_OPTIONS_PROPS)
+            on_change=lambda e: render_beans_panel.refresh(filter_kind=(e.sender.value or REMOVE_FILTER))).props(TOGGLE_OPTIONS_PROPS+" clearable")
         ui.toggle(
             options=list(beanops.SORT_BY.keys()), 
             value=DEFAULT_SORT_BY, 
-            on_change=lambda e: render_beans_panel.refresh(filter_sort_by=e.sender.value)).props("unelevated rounded no-caps color=dark")
+            on_change=lambda e: render_beans_panel.refresh(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
     
     # tag filter panel
     render_filter_tags(
@@ -192,7 +192,7 @@ async def render_search(context: NavigationContext):
     ui.toggle(
         options=KIND_LABELS, 
         value=beanops.DEFAULT_KIND, 
-        on_change=lambda e: render_result_panel.refresh(filter_kind=e.sender.value or REMOVE_FILTER)).props("unelevated rounded no-caps color=dark toggle-color=primary")  
+        on_change=lambda e: render_result_panel.refresh(filter_kind=e.sender.value or REMOVE_FILTER)).props(TOGGLE_OPTIONS_PROPS+" clearable")  
 
     render_filter_tags(
         load_tags=lambda: beanops.search_tags(query=context.search_query, accuracy=context.search_accuracy, tags=context.filter_tags, kinds=context.filter_kind, sources=None, last_ndays=context.search_ndays, start=0, limit=MAX_FILTER_TAGS), 

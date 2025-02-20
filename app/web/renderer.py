@@ -72,16 +72,22 @@ def create_barista_target(barista_id = None, source = None, tag = None):
     if source: return create_navigation_target("/baristas", source=source)
     if tag: return create_navigation_target("/baristas", tag=tag)
 
+def create_share_func(context: NavigationContext, bean: Bean, target: str):
+    return lambda: [
+        context.log("shared", url=bean.url, target=target),
+        ui.navigate.to(create_navigation_target(target, url=bean.url, text=f"# {bean.title}\n{bean.summary}\n\n{bean.url}"), new_tab=True)
+    ]
+
 navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
 navigate_to_barista = lambda barista_id = None, source = None, tag = None: ui.navigate.to(create_barista_target(barista_id, source, tag))
 navigate_to_search = lambda query = None, tags = None: ui.navigate.to(create_search_target(query, tags))
-tooltip_msg = lambda ctx, msg: msg if ctx.is_registered else f"Login to {msg}"
 
-def render_banner(text: str|list[str]):
-    banner_text = inflect_engine.join(text) if isinstance(text, list) else text
-    return ui.label(banner_text).classes("text-h6")
-
+render_banner = lambda text: ui.label( inflect_engine.join(text) if isinstance(text, list) else text).classes("text-h6")
 render_thick_separator = lambda: ui.separator().style("height: 5px;").classes("w-full")
+render_share_button = lambda context, bean, target, icon: ui.button(on_click=create_share_func(context, bean, target), icon=icon, color="transparent").props("flat")
+render_bean = lambda context, bean, expanded, on_read: render_expandable_bean(context, bean, expanded, on_read)
+
+tooltip_msg = lambda ctx, msg: msg if ctx.is_registered else f"Login to {msg}"
 
 def render_header(context: NavigationContext):
     ui.add_css(CSS_FILE)
@@ -200,13 +206,11 @@ def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
         holder.clear()
         if not tags: return
         with holder:
-            ui.button(icon="close_small", color="dark", on_click=lambda: filter_tags.set_value(REMOVE_FILTER)).props("unelevated dense")
             with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)) \
-                .props("dense mobile-arrows shrink no-caps active-bg-color=primary indicator-color=transparent align=justify") \
-                .classes("bg-dark rounded-borders").style("max-width: 90vw;") as filter_tags:
+                .props("dense shrink no-caps active-bg-color=primary indicator-color=transparent") \
+                .classes("bg-dark rounded-borders").style("max-width: 90vw;") as filter_tags:                
                 [ui.tab(tag) for tag in tags]
-           
-           
+                ui.button(icon="close", color="grey-4", on_click=lambda: filter_tags.set_value(REMOVE_FILTER)).props("flat dense")
 
     with ui.row(align_items="stretch", wrap=False).classes("gap-1") as holder:
         ui.skeleton("rect", width="100%").classes("w-full h-full")
@@ -287,7 +291,6 @@ def render_bean_with_related(context: NavigationContext, bean: Bean):
     return view
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
-render_bean = lambda context, bean, expanded, on_read: render_expandable_bean(context, bean, expanded, on_read)
 def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: bool = False, on_read: Callable = None):
 
     async def on_expanded():
@@ -352,27 +355,16 @@ def render_bean_source(context: NavigationContext, bean: Bean):
     return view
 
 def render_bean_actions(context: NavigationContext, bean: Bean): 
-
-    share_text = f"{bean.summary}\n\n{bean.url}"  
-    
-    def share_func(target: str):
-        return lambda: [
-            context.log("shared", url=bean.url, target=target),
-            ui.navigate.to(create_navigation_target(target, url=bean.url, text=share_text), new_tab=True)
-        ]
-    share_button = lambda target, icon: ui.button(on_click=share_func(target), icon=icon, color="transparent").props("flat")
-
     with ui.row(wrap=False, align_items="center").classes("justify-between") as view:
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
-            ui.button(
-                icon="thumb_up_outlined", 
-                color="secondary", 
-                on_click=lambda: context.log("liked", url=bean.url)
-            ) \
-                .props(ACTION_BUTTON_PROPS) \
-                .tooltip(tooltip_msg(context, "Like")) \
-                .set_enabled(context.is_registered)
-            
+            # ui.button(
+            #     icon="thumb_up_outlined", 
+            #     color="secondary", 
+            #     on_click=lambda: context.log("liked", url=bean.url)
+            # ) \
+            #     .props(ACTION_BUTTON_PROPS) \
+            #     .tooltip(tooltip_msg(context, "Like")) \
+            #     .set_enabled(context.is_registered)
             SwitchButton(
                 beanops.is_bookmarked(context, bean.url), 
                 unswitched_icon="bookmark_outlined", switched_icon="bookmark", 
@@ -398,10 +390,10 @@ def render_bean_actions(context: NavigationContext, bean: Bean):
             with ui.button(icon="share", color="secondary").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):
-                        share_button("https://www.reddit.com/submit", REDDIT_ICON).tooltip("Share on Reddit")
-                        share_button("https://www.linkedin.com/shareArticle", LINKEDIN_ICON).tooltip("Share on LinkedIn")
-                        share_button("https://x.com/intent/tweet", TWITTER_ICON).tooltip("Share on X")
-                        share_button("https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
+                        render_share_button(context, bean, "https://www.reddit.com/submit", REDDIT_ICON).tooltip("Share on Reddit")
+                        render_share_button(context, bean, "https://www.linkedin.com/shareArticle", LINKEDIN_ICON).tooltip("Share on LinkedIn")
+                        render_share_button(context, bean, "https://x.com/intent/tweet", TWITTER_ICON).tooltip("Share on X")
+                        render_share_button(context, bean, "https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
                         # share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
     return view  
 
