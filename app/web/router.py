@@ -1,7 +1,7 @@
 import logging
 from azure.monitor.opentelemetry import configure_azure_monitor
 from app.shared.env import *
-
+from icecream import ic
 if APPINSIGHTS_CONNECTION_STRING:   
     configure_azure_monitor(
         connection_string=APPINSIGHTS_CONNECTION_STRING, 
@@ -13,26 +13,34 @@ logger.setLevel(logging.INFO)
 from app.web import vanilla
 from app.pybeansack.models import User, Barista
 from app.shared.utils import NavigationContext, log
-from app.shared import beanops
+from app.shared import beanops, messages
 
 import jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, Query
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, FileResponse
+from starlette.responses import RedirectResponse, FileResponse, PlainTextResponse
 from authlib.integrations.starlette_client import OAuth
 from nicegui import ui, app
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+REGISTRATION_INFO_KEY = "registration_info"
 
 JWT_TOKEN_KEY = 'espressotoken'
 JWT_TOKEN_LIFETIME = timedelta(days=7) # TODO: change this later to 30 days
 JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 minutes
+
+LIMIT_5_A_MINUTE = "5/minute"
 
 jwt_token_exp = lambda: datetime.now() + JWT_TOKEN_LIFETIME
 jwt_token_needs_refresh = lambda data: (datetime.now() - JWT_TOKEN_REFRESH_WINDOW).timestamp() < data['exp']
 user_id = lambda user: user.email if user else app.storage.browser.get("id")
 
 oauth = OAuth()
+limiter = Limiter(key_func=get_remote_address, swallow_errors=True)
 
 def create_jwt_token(email: str):
     data = {
@@ -105,11 +113,6 @@ def validate_barista(barista_id: str) -> Barista:
     barista = beanops.db.get_barista(barista_id)
     if not barista:
         raise HTTPException(status_code=404, detail=f"{barista_id} not found")
-    
-    if not barista.public:
-        user = extract_user()
-        if not user or barista.owner != user.email:
-            raise HTTPException(status_code=401, detail="Unauthorized")
     return barista
 
 def validate_doc(doc_id: str):
@@ -122,41 +125,33 @@ def validate_image(image_id: str):
         raise HTTPException(status_code=404, detail=f"{image_id} not found")
     return f"./images/{image_id}"
 
-def extract_user():
+def validate_registration():
+    userinfo = app.storage.browser.get(REGISTRATION_INFO_KEY)
+    if not userinfo:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    del app.storage.browser[REGISTRATION_INFO_KEY]
+    return userinfo
+
+def validate_logged_in_user():
     token = app.storage.browser.get(JWT_TOKEN_KEY)
-    default_id = app.storage.browser.get("id")
     if not token:
-        return default_id
+        raise HTTPException(status_code=401, detail="Unauthorized")
     data = decode_jwt_token(token)
     if not data:
         del app.storage.browser[JWT_TOKEN_KEY]
-        return default_id
+        raise HTTPException(status_code=401, detail="Unauthorized")
     user = beanops.db.get_user(data["email"])
     if not user:
         del app.storage.browser[JWT_TOKEN_KEY]
-        return default_id
-    return user
-
-def extract_page_context(page_id: str) -> NavigationContext:
-    return NavigationContext(page_id, extract_user())
-
-def extract_barista_context(barista_id: str) -> NavigationContext:
-    barista = beanops.db.get_barista(barista_id.lower())
-    if not barista:
-        raise HTTPException(status_code=404, detail=f"{barista_id} not found")
-    
-    ctx = NavigationContext(barista, extract_user())
-    if not ctx.has_read_permission:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return ctx
-
-def logged_in_user():
-    user = extract_user()
-    if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return user
 
-REGISTRATION_INFO_KEY = "registration_info"
+def create_context(page_id: str|Barista, request: Request) -> NavigationContext:
+    try:
+        user = validate_logged_in_user()
+    except:
+        user = get_remote_address(request)
+    return NavigationContext(page_id, user)
 
 def login_user(user: dict|User):
     email = user.email if isinstance(user, User) else user['email']
@@ -173,16 +168,11 @@ def process_oauth_result(result: dict):
         app.storage.browser[REGISTRATION_INFO_KEY] = result['userinfo']
         return RedirectResponse("/user/register")
 
-def extract_registration_context():
-    val = app.storage.browser.get(REGISTRATION_INFO_KEY)
-    if not val:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    del app.storage.browser[REGISTRATION_INFO_KEY]
-    return NavigationContext("registration", val)
+
 
 @app.get("/oauth/google/login")
 async def google_oauth_login(request: Request):
-    log("oauth_login", user_id=app.storage.browser.get("id"), provider="google")
+    log("oauth_login", user_id=get_remote_address(request), provider="google")
     return await oauth.google.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/google/redirect")
 
 @app.get("/oauth/google/redirect")
@@ -191,12 +181,12 @@ async def google_oauth_redirect(request: Request):
         token = await oauth.google.authorize_access_token(request)
         return process_oauth_result(token)
     except Exception as err:
-        log("oauth_error", user_id=app.storage.browser.get("id"), provider="google", error=str(err))
+        log("oauth_error", user_id=get_remote_address(request), provider="google", error=str(err))
         return RedirectResponse("/")
 
 @app.get("/oauth/slack/login")
 async def slack_oauth_login(request: Request):
-    log("oauth_login", user_id=app.storage.browser.get("id"), provider="slack")
+    log("oauth_login", user_id=get_remote_address(request), provider="slack")
     return await oauth.slack.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/slack/redirect")
 
 @app.get("/oauth/slack/redirect")
@@ -205,12 +195,12 @@ async def slack_oauth_redirect(request: Request):
         token = await oauth.slack.authorize_access_token(request)
         return process_oauth_result(token)  
     except Exception as err:
-        log("oauth_error", user_id=app.storage.browser.get("id"), provider="slack", error=str(err))
+        log("oauth_error", user_id=get_remote_address(request), provider="slack", error=str(err))
         return RedirectResponse("/")
     
 @app.get("/oauth/linkedin/login")
 async def linkedin_oauth_login(request: Request):
-    log("oauth_login", user_id=app.storage.browser.get("id"), provider="linkedin")
+    log("oauth_login", user_id=get_remote_address(request), provider="linkedin")
     return await oauth.linkedin.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/linkedin/redirect")
 
 @app.get("/oauth/linkedin/redirect")
@@ -219,18 +209,18 @@ async def linkedin_oauth_redirect(request: Request):
         token = await oauth.linkedin.authorize_access_token(request)
         return process_oauth_result(token) 
     except Exception as err:
-        log("oauth_error", user_id=app.storage.browser.get("id"), provider="linkedin", error=str(err))
+        log("oauth_error", user_id=get_remote_address(request), provider="linkedin", error=str(err))
         return RedirectResponse("/")
 
 @app.get("/user/me/logout")
-async def logout_user(user: beanops.User|str = Depends(logged_in_user)):
+async def logout_user(user: beanops.User|str = Depends(validate_logged_in_user)):
     log("logout_user", user_id=user)
     if JWT_TOKEN_KEY in app.storage.browser:
         del app.storage.browser[JWT_TOKEN_KEY]
     return RedirectResponse("/")
 
 @app.get("/user/me/delete")
-async def delete_user(user: beanops.User|str = Depends(logged_in_user)):
+async def delete_user(user: beanops.User|str = Depends(validate_logged_in_user)):
     log("delete_user", user_id=user)
     beanops.db.delete_user(user.email)
     if JWT_TOKEN_KEY in app.storage.browser:
@@ -238,11 +228,11 @@ async def delete_user(user: beanops.User|str = Depends(logged_in_user)):
     return RedirectResponse("/")
 
 @app.get("/docs/{doc_id}")
-async def document(
-    user: beanops.User|str = Depends(extract_user),
+async def document(request: Request,
     doc_id: str = Depends(validate_doc, use_cache=True)
 ):
-    log('docs', user_id=user, page_id=doc_id)
+    context = create_context(doc_id, request)
+    context.log('read doc')
     return FileResponse(doc_id, media_type="text/markdown")
     
 @app.get("/images/{image_id}")
@@ -250,31 +240,40 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
     return FileResponse(image_id, media_type="image/png")
 
 @ui.page("/", title="Espresso")
-async def home(context: NavigationContext = Depends(lambda: extract_page_context("home"))):  
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def home(request: Request):
+    context = create_context("home", request)  
     await vanilla.render_home(context)
 
-@ui.page("/baristas/{barista_id}", title="Espresso")
-async def barista(context: NavigationContext = Depends(extract_barista_context)): 
+@ui.page("/baristas/{barista_id}")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def barista(request: Request, barista_id: Barista = Depends(validate_barista, use_cache=True)): 
+    app.title = f"Espresso {barista_id.title}"
+    context = create_context(barista_id, request)
+    if not context.has_read_permission:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_barista_page(context)
 
 @ui.page("/baristas", title="Espresso News, Posts and Blogs")
-async def custom_barista(
-    context: NavigationContext = Depends(lambda: extract_page_context("cutom_barista")),
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def custom_barista(request: Request, 
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
+    context = create_context("cutom_barista", request)
     context.search_tags = tag
     context.search_sources = source
     await vanilla.render_custom_page(context)
 
 @ui.page("/search", title="Espresso Search")
-async def search(
-    context: NavigationContext = Depends(lambda: extract_page_context("search")),
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def search(request: Request, 
     query: str = None,
     acc: float = Query(ge=0, le=1, default=beanops.DEFAULT_ACCURACY),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=beanops.DEFAULT_WINDOW)
 ):
+    context = create_context("search", request)
     context.search_query = query
     context.search_accuracy = acc
     context.search_tags = tag
@@ -282,7 +281,9 @@ async def search(
     await vanilla.render_search(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
-async def register_user(context: NavigationContext = Depends(extract_registration_context)):
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def register_user(request: Request, userinfo: dict = Depends(validate_registration)):
+    context = NavigationContext("registration", userinfo)
     await vanilla.render_registration(context)
     
 GOOGLE_ANALYTICS_SCRIPT = '''
@@ -299,6 +300,8 @@ GOOGLE_ANALYTICS_SCRIPT = '''
 
 def run():
     app.add_middleware(SessionMiddleware, secret_key=APP_STORAGE_SECRET) # needed for oauth
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     ui.add_head_html(GOOGLE_ANALYTICS_SCRIPT, shared=True)
     ui.run(
         title=APP_NAME, 

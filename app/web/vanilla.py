@@ -17,7 +17,7 @@ async def render_home(context: NavigationContext):
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_per_group(context.filter_tags, context.filter_kind, None, context.filter_sort_by, start, limit)
+        return beanops.get_beans_per_group(context.filter_tags, context.filter_kind, None, 2, context.filter_sort_by, start, limit)
 
     def apply_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
         if filter_tags:
@@ -246,7 +246,7 @@ def render_related_baristas(context: NavigationContext):
     with ui.column(align_items="stretch").classes("w-full"):
         render_thick_separator()
         with ui.row().classes("w-full gap-1"):
-            [ui.item(item.title, on_click=lambda item=item: navigate_to_barista(item.id)).classes("bg-dark rounded-borders") for item in related_baristas]
+            render_barista_items(related_baristas)
 
 async def render_doc(user: User, doc_id: str):
     render_header(user)

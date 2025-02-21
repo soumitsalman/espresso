@@ -193,7 +193,7 @@ def render_search_bar(search_func: Callable, search_placeholder: str = SEARCH_BE
         .props("dense standout clearable clear-icon=close")
     return search_input
 
-render_barista_items = lambda baristas: [ui.item(item.title, on_click=lambda item=item: navigate_to_barista(item.id)).classes("w-full") for item in baristas]
+render_barista_items = lambda baristas: [ui.item(item.title).props(f"clickable standout href={create_barista_target(item.id)}").classes("bg-dark rounded-borders") for item in baristas]
 
 def render_baristas(baristas: list[Barista]):
     with ui.list() as holder:
@@ -207,8 +207,8 @@ def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
         if not tags: return
         with holder:
             with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)) \
-                .props("dense shrink no-caps active-bg-color=primary indicator-color=transparent") \
-                .classes("bg-dark rounded-borders").style("max-width: 90vw;") as filter_tags:                
+                .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") \
+                .classes("bg-dark rounded-borders") as filter_tags:                
                 [ui.tab(tag) for tag in tags]
                 ui.button(icon="close", color="grey-4", on_click=lambda: filter_tags.set_value(REMOVE_FILTER)).props("flat dense")
 
@@ -224,7 +224,7 @@ def render_beans(context: NavigationContext, load_beans: Callable, container: ui
         with container:
             if not beans:
                 ui.label(NOTHING_FOUND).classes("w-full text-center") 
-            [render_bean_with_related(context, bean).classes("w-full w-full m-0 p-0") for bean in beans] 
+            [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
 
     container = container or ui.column(align_items="stretch")
     with container:
@@ -355,16 +355,14 @@ def render_bean_source(context: NavigationContext, bean: Bean):
     return view
 
 def render_bean_actions(context: NavigationContext, bean: Bean): 
+    bug_report = render_report_a_bug()
+
+    async def show_bug_report():
+        issue = await bug_report
+        if issue: context.log("reported", url=bean.url, bug=issue)
+
     with ui.row(wrap=False, align_items="center").classes("justify-between") as view:
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
-            # ui.button(
-            #     icon="thumb_up_outlined", 
-            #     color="secondary", 
-            #     on_click=lambda: context.log("liked", url=bean.url)
-            # ) \
-            #     .props(ACTION_BUTTON_PROPS) \
-            #     .tooltip(tooltip_msg(context, "Like")) \
-            #     .set_enabled(context.is_registered)
             SwitchButton(
                 beanops.is_bookmarked(context, bean.url), 
                 unswitched_icon="bookmark_outlined", switched_icon="bookmark", 
@@ -378,7 +376,7 @@ def render_bean_actions(context: NavigationContext, bean: Bean):
             ui.button(
                 icon="bug_report", 
                 color="secondary", 
-                on_click=lambda: context.log("reported", url=bean.url)
+                on_click=show_bug_report
             ) \
                 .props(ACTION_BUTTON_PROPS) \
                 .tooltip(tooltip_msg(context, "Report Bug")) \
@@ -396,6 +394,22 @@ def render_bean_actions(context: NavigationContext, bean: Bean):
                         render_share_button(context, bean, "https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
                         # share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
     return view  
+
+def render_report_a_bug():
+    with ui.dialog() as dialog, ui.card():
+        with ui.row(wrap=False):
+            ui.icon("bug_report")
+            ui.label("Don't like it? Report it!")
+        with ui.row():
+            ui.button("Category/Scope WTF", on_click=lambda: dialog.submit("Category/Scope WTF"))
+            ui.button("Summary/Title WTF", on_click=lambda: dialog.submit("Summary/Title WTF"))
+            ui.button("Ugly AF", on_click=lambda: dialog.submit("Ugly AF"))
+        other_text = ui.input(placeholder="Cry me a river").props("standout").classes("w-full")
+        with ui.row(wrap=False).classes("self-end"):
+            ui.button("Report", on_click=lambda: dialog.submit(other_text.value)).bind_visibility_from(other_text, "value", lambda v: v and len(v.split()) >=3)
+            ui.button("Cancel", color="negative", on_click=lambda: dialog.submit(False))
+    return dialog
+
 
 # def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
 #     selected_tags = []

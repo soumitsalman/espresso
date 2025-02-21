@@ -26,3 +26,4 @@ SEARCH_BEANS_PLACEHOLDER = "What would you like to know today?"
 SEARCH_BARISTA_PLACEHOLDER = "Find your filtered pour"
 
 COOKIE_NOTIFICATION = "We use cookies which are necessary for maintaining your browsing session experience on our website. By continuing to use this site, you agree to our use of cookies."
+LIMIT_ERROR_MSG = "Slow down cuh, it ain't that kinda party"

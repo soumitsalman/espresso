@@ -48,11 +48,11 @@ def get_beans(urls: str|list[str], tags: str|list[str]|list[list[str]], kinds: s
     return db.get_beans(filter=filter, sort_by=SORT_BY[sort_by], skip=start, limit=limit, projection=PROJECTION)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|list[str], sort_by, start: int, limit: int):
+def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """get one bean per cluster and per source"""
     sort_by = SORT_BY[sort_by]
     pipeline = [
-        { "$match": _create_filter(tags, kinds, sources, None, None, None) },
+        { "$match": _create_filter(tags, kinds, sources, None, last_ndays, None) },
         { "$sort": sort_by },
         {
             "$group": {
