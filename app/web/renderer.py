@@ -21,6 +21,7 @@ IMAGE_DIMENSIONS = "w-32"
 STRETCH_FIT = "w-full h-full m-0 p-0"
 ACTION_BUTTON_PROPS = "flat size=sm"
 TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=primary"
+SEARCH_BAR_PROPS = "item-aligned dense standout clearable clear-icon=close maxlength=1000"
 
 GOOGLE_ICON = "img:https://www.google.com/favicon.ico"
 REDDIT_ICON = "img:https://www.reddit.com/favicon.ico"
@@ -103,21 +104,14 @@ def render_header(context: NavigationContext):
             
         ui.button(icon="home_outlined", on_click=lambda: navigate_to("/")).props("unelevated").classes("lt-sm")
         ui.button(icon="search_outlined", on_click=navigate_to_search).props("unelevated").classes("lt-sm")
+        render_search_bar(context, navigate_to_search).classes("w-1/2 p-0 gt-xs")
 
-        trigger_search = lambda: navigate_to_search(search_input.value)
-        with ui.input(value=context.search_query, placeholder=SEARCH_BEANS_PLACEHOLDER) \
-            .props('item-aligned dense standout clearable clear-icon=close maxlength=1000') \
-            .classes("gt-xs w-1/2 m-0 p-0") \
-            .on("keydown.enter", trigger_search) as search_input:    
-            prepend = search_input.add_slot("prepend")   
-            with prepend:
-                ui.button(icon="search", color="secondary", on_click=trigger_search).props("flat rounded").classes("m-0")
-                
-        (render_user(context.user) if context.is_registered else render_login()).props("unelevated")
+        if context.is_registered: render_user(context.user)
+        else: render_login()
     return header
 
 def render_login():
-    with ui.button(icon="login") as view:
+    with ui.button(icon="login").props("unelevated") as view:
         with ui.menu().props("transition-show=jump-down transition-hide=jump-up").classes("max-w-full"):           
             for option in LOGIN_OPTIONS:
                 with ui.menu_item(option["title"], on_click=lambda url=option['url']: ui.navigate.to(url)):
@@ -125,7 +119,7 @@ def render_login():
     return view
 
 def render_user(user: User):
-    with ui.button(icon="person") as view:
+    with ui.button(icon="person").props("unelevated") as view:
         # with ui.avatar(color="transparent", rounded=True, size="md") as view:
         #     ui.image(user.image_url) if user.image_url else ui.icon("person")
         with ui.menu():
@@ -154,7 +148,7 @@ def render_user(user: User):
 def render_navigation_panel(context: NavigationContext):    
     navigation_items = _create_navigation_baristas(context)
 
-    def search_barista(text: str):
+    def search_and_render_barista(text: str):
         search_results_panel.clear()
         if not text: return 
         context.log("search_barista", query=text)
@@ -174,7 +168,7 @@ def render_navigation_panel(context: NavigationContext):
             with ui.scroll_area().classes(STRETCH_FIT):
                 with ui.tab_panels(tabs).props("vertical"):
                     with ui.tab_panel("search").classes(STRETCH_FIT):
-                        render_search_bar(search_barista, SEARCH_BARISTA_PLACEHOLDER)
+                        render_barista_search_bar(search_and_render_barista)
                         search_results_panel = render_baristas(None)
 
                     for item in navigation_items:
@@ -185,9 +179,20 @@ def render_navigation_panel(context: NavigationContext):
         
     return navigation_panel  
 
-def render_search_bar(search_func: Callable, search_placeholder: str = SEARCH_BEANS_PLACEHOLDER):
+def render_search_bar(context: NavigationContext, search_func: Callable):
     trigger_search = lambda: search_func(search_input.value)
-    search_input = ui.input(placeholder=search_placeholder) \
+    with ui.input(placeholder=SEARCH_BEANS_PLACEHOLDER, value=context.search_query) \
+        .on("keydown.enter", trigger_search) \
+        .props(SEARCH_BAR_PROPS) \
+        as search_input:    
+        prepend = search_input.add_slot("prepend")   
+        with prepend:
+            ui.button(icon="search", color="secondary", on_click=trigger_search).bind_visibility_from(search_input, "value").props("flat dense").classes("m-0")
+    return search_input
+
+def render_barista_search_bar(search_func: Callable):
+    trigger_search = lambda: search_func(search_input.value)
+    search_input = ui.input(placeholder=SEARCH_BARISTA_PLACEHOLDER) \
         .on("keydown.enter", trigger_search) \
         .on("clear", trigger_search) \
         .props("dense standout clearable clear-icon=close")

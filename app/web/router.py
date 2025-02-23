@@ -38,7 +38,7 @@ LIMIT_10_A_MINUTE = "10/minute"
 
 jwt_token_exp = lambda: datetime.now() + JWT_TOKEN_LIFETIME
 jwt_token_needs_refresh = lambda data: (datetime.now() - JWT_TOKEN_REFRESH_WINDOW).timestamp() < data['exp']
-get_unauthenticated_user = get_ipaddr
+get_unauthenticated_user = lambda request: app.storage.browser.get("id") or get_ipaddr(request)
 
 oauth = OAuth()
 limiter = Limiter(key_func=get_unauthenticated_user, swallow_errors=True)
@@ -308,5 +308,6 @@ def run():
         favicon="./images/favicon.ico", 
         port=8080, 
         show=False,
-        uvicorn_reload_includes="*.py,*/web/styles.css"
+        uvicorn_reload_includes="*.py,*/web/styles.css",
+        proxy_headers=True
     )

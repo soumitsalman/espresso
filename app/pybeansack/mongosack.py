@@ -200,7 +200,7 @@ class Beansack:
         result = self.beanstore.aggregate(pipeline)
         return next(iter(result), {'total_count': 0})['total_count'] if result else 0
     
-    def query_tags(self, filter, exclude_from_result = None, skip = 0, limit = 0):
+    def sample_query_tags(self, filter, exclude_from_result = None, skip = 0, limit = 0):
         match = {K_TAGS: {"$exists": True}}
         if filter: match.update(filter)
         # flatten the tags within the filter
@@ -222,10 +222,11 @@ class Beansack:
         if skip:
             pipeline.append({"$skip": skip})    
         if limit:
-            pipeline.append({"$limit": limit})   
+            pipeline.append({"$limit": 3*limit})
+            pipeline.append({"$sample": {"size": limit}})   
         return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
     
-    def text_search_tags(self, query: str, filter = None, skip = 0, limit = 0):
+    def sample_text_search_tags(self, query: str, filter = None, skip = 0, limit = 0):
         match = {"$text": {"$search": query}}
         if filter: match.update(filter)
         pipeline = [
@@ -242,10 +243,11 @@ class Beansack:
         if skip:
             pipeline.append({"$skip": skip})    
         if limit:
-            pipeline.append({"$limit": limit})   
+            pipeline.append({"$limit": 3*limit})
+            pipeline.append({"$sample": {"size": limit}})    
         return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
 
-    def vector_search_tags(self, 
+    def sample_vector_search_tags(self, 
             embedding: list[float] = None, 
             min_score = None, 
             filter = None, 
@@ -289,7 +291,8 @@ class Beansack:
         if skip:
             pipeline.append({"$skip": skip})
         if limit:
-            pipeline.append({"$limit": limit})
+            pipeline.append({"$limit": 3*limit})
+            pipeline.append({"$sample": {"size": limit}})  
         return [item[K_ID] for item in self.beanstore.aggregate(pipeline=pipeline)]
 
     def get_cluster_sizes(self, urls: list[str]) -> list:

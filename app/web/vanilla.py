@@ -14,10 +14,11 @@ BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 
 async def render_home(context: NavigationContext):
     context.filter_tags, context.filter_kind, context.filter_sort_by = None, DEFAULT_KIND, DEFAULT_SORT_BY # starting default 
+    context.search_ndays = 2
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_per_group(context.filter_tags, context.filter_kind, None, 2, context.filter_sort_by, start, limit)
+        return beanops.get_beans_per_group(context.filter_tags, context.filter_kind, None, context.search_ndays, context.filter_sort_by, start, limit)
 
     def apply_filter(filter_tags: list[str] = None, filter_kind: str = None, filter_sort_by: str = None):
         if filter_tags:
@@ -31,7 +32,7 @@ async def render_home(context: NavigationContext):
     render_banner(HOME_BANNER_TEXT)    
     render_content(
         context, 
-        lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=2, start=0, limit=MAX_FILTER_TAGS), 
+        lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=context.search_ndays, start=0, limit=MAX_FILTER_TAGS), 
         apply_filter,
         retrieve_beans
     )   
@@ -167,12 +168,7 @@ async def render_search(context: NavigationContext):
             lambda: beanops.count_search_beans(context.search_query, context.search_accuracy, context.filter_tags, context.filter_kind, None, context.search_ndays, beanops.MAX_LIMIT)).classes("w-full")               
 
     render_header(context)
-
-    trigger_search = lambda: ui.navigate.to(create_search_target(search_input.value))
-    with ui.input(placeholder=SEARCH_BEANS_PLACEHOLDER, value=context.search_query) \
-        .props('rounded outlined input-class=mx-3').classes('w-full self-center lt-sm') \
-        .on('keydown.enter', trigger_search) as search_input:
-        ui.button(icon="send", on_click=trigger_search).bind_visibility_from(search_input, 'value').props("flat dense")  
+    render_search_bar(context, navigate_to_search).classes('w-full lt-sm').props(remove="dense")
     
     if not (context.search_query or context.search_tags):  return
 

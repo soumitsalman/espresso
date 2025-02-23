@@ -132,8 +132,8 @@ def get_barista_tags(barista: Barista, start: int, limit: int):
         created_in_last_ndays = None, 
         updated_in_last_ndays = None        
     )
-    if barista.query_embedding: return db.vector_search_tags(embedding=barista.query_embedding, min_score=barista.query_distance or DEFAULT_ACCURACY, filter=filter, skip=start, limit=limit)
-    if barista.query_urls or barista.query_tags or barista.query_sources: return db.query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
+    if barista.query_embedding: return db.sample_vector_search_tags(embedding=barista.query_embedding, min_score=barista.query_distance or DEFAULT_ACCURACY, filter=filter, skip=start, limit=limit)
+    if barista.query_urls or barista.query_tags or barista.query_sources: return db.sample_query_tags(filter=filter, exclude_from_result=barista.query_tags, skip=start, limit=limit)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -169,11 +169,11 @@ def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]]
             created_in_last_ndays=last_ndays, 
             updated_in_last_ndays=None
         )  
-        return db.vector_search_tags(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit)
+        return db.sample_vector_search_tags(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit)
 
     filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.vector_search_tags(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit)  
-    return db.query_tags(filter=filter, exclude_from_result=tags, skip=start, limit=limit)
+    if query: return db.sample_vector_search_tags(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit)  
+    return db.sample_query_tags(filter=filter, exclude_from_result=tags, skip=start, limit=limit)
     
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int) -> int:
