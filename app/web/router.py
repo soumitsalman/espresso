@@ -25,7 +25,7 @@ from authlib.integrations.starlette_client import OAuth
 from nicegui import ui, app
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+from slowapi.util import get_ipaddr
 
 REGISTRATION_INFO_KEY = "registration_info"
 
@@ -34,13 +34,14 @@ JWT_TOKEN_LIFETIME = timedelta(days=7) # TODO: change this later to 30 days
 JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 minutes
 
 LIMIT_5_A_MINUTE = "5/minute"
+LIMIT_10_A_MINUTE = "10/minute"
 
 jwt_token_exp = lambda: datetime.now() + JWT_TOKEN_LIFETIME
 jwt_token_needs_refresh = lambda data: (datetime.now() - JWT_TOKEN_REFRESH_WINDOW).timestamp() < data['exp']
-user_id = lambda user: user.email if user else app.storage.browser.get("id")
+get_unauthenticated_user = get_ipaddr
 
 oauth = OAuth()
-limiter = Limiter(key_func=get_remote_address, swallow_errors=True)
+limiter = Limiter(key_func=get_unauthenticated_user, swallow_errors=True)
 
 def create_jwt_token(email: str):
     data = {
@@ -132,7 +133,7 @@ def validate_registration():
     del app.storage.browser[REGISTRATION_INFO_KEY]
     return userinfo
 
-def validate_logged_in_user():
+def validate_authenticated_user():
     token = app.storage.browser.get(JWT_TOKEN_KEY)
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -148,9 +149,9 @@ def validate_logged_in_user():
 
 def create_context(page_id: str|Barista, request: Request) -> NavigationContext:
     try:
-        user = validate_logged_in_user()
+        user = validate_authenticated_user()
     except:
-        user = get_remote_address(request)
+        user = get_unauthenticated_user(request)
     return NavigationContext(page_id, user)
 
 def login_user(user: dict|User):
@@ -168,11 +169,9 @@ def process_oauth_result(result: dict):
         app.storage.browser[REGISTRATION_INFO_KEY] = result['userinfo']
         return RedirectResponse("/user/register")
 
-
-
 @app.get("/oauth/google/login")
 async def google_oauth_login(request: Request):
-    log("oauth_login", user_id=get_remote_address(request), provider="google")
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="google")
     return await oauth.google.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/google/redirect")
 
 @app.get("/oauth/google/redirect")
@@ -181,12 +180,12 @@ async def google_oauth_redirect(request: Request):
         token = await oauth.google.authorize_access_token(request)
         return process_oauth_result(token)
     except Exception as err:
-        log("oauth_error", user_id=get_remote_address(request), provider="google", error=str(err))
+        log("oauth_error", user_id=get_ipaddr(request), provider="google", error=str(err))
         return RedirectResponse("/")
 
 @app.get("/oauth/slack/login")
 async def slack_oauth_login(request: Request):
-    log("oauth_login", user_id=get_remote_address(request), provider="slack")
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="slack")
     return await oauth.slack.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/slack/redirect")
 
 @app.get("/oauth/slack/redirect")
@@ -195,12 +194,12 @@ async def slack_oauth_redirect(request: Request):
         token = await oauth.slack.authorize_access_token(request)
         return process_oauth_result(token)  
     except Exception as err:
-        log("oauth_error", user_id=get_remote_address(request), provider="slack", error=str(err))
+        log("oauth_error", user_id=get_unauthenticated_user(request), provider="slack", error=str(err))
         return RedirectResponse("/")
     
 @app.get("/oauth/linkedin/login")
 async def linkedin_oauth_login(request: Request):
-    log("oauth_login", user_id=get_remote_address(request), provider="linkedin")
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="linkedin")
     return await oauth.linkedin.authorize_redirect(request, os.getenv("BASE_URL") + "/oauth/linkedin/redirect")
 
 @app.get("/oauth/linkedin/redirect")
@@ -209,18 +208,18 @@ async def linkedin_oauth_redirect(request: Request):
         token = await oauth.linkedin.authorize_access_token(request)
         return process_oauth_result(token) 
     except Exception as err:
-        log("oauth_error", user_id=get_remote_address(request), provider="linkedin", error=str(err))
+        log("oauth_error", user_id=get_unauthenticated_user(request), provider="linkedin", error=str(err))
         return RedirectResponse("/")
 
 @app.get("/user/me/logout")
-async def logout_user(user: beanops.User|str = Depends(validate_logged_in_user)):
+async def logout_user(user: beanops.User|str = Depends(validate_authenticated_user)):
     log("logout_user", user_id=user)
     if JWT_TOKEN_KEY in app.storage.browser:
         del app.storage.browser[JWT_TOKEN_KEY]
     return RedirectResponse("/")
 
 @app.get("/user/me/delete")
-async def delete_user(user: beanops.User|str = Depends(validate_logged_in_user)):
+async def delete_user(user: beanops.User|str = Depends(validate_authenticated_user)):
     log("delete_user", user_id=user)
     beanops.db.delete_user(user.email)
     if JWT_TOKEN_KEY in app.storage.browser:
@@ -245,17 +244,16 @@ async def home(request: Request):
     context = create_context("home", request)  
     await vanilla.render_home(context)
 
-@ui.page("/baristas/{barista_id}")
+@ui.page("/baristas/{barista_id}", title="Espresso")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
 async def barista(request: Request, barista_id: Barista = Depends(validate_barista, use_cache=True)): 
-    app.title = f"Espresso {barista_id.title}"
     context = create_context(barista_id, request)
     if not context.has_read_permission:
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_barista_page(context)
 
 @ui.page("/baristas", title="Espresso News, Posts and Blogs")
-@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+@limiter.limit(LIMIT_10_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
 async def custom_barista(request: Request, 
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
