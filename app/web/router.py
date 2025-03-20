@@ -30,7 +30,7 @@ from slowapi.util import get_ipaddr
 REGISTRATION_INFO_KEY = "registration_info"
 
 JWT_TOKEN_KEY = 'espressotoken'
-JWT_TOKEN_LIFETIME = timedelta(days=7) # TODO: change this later to 30 days
+JWT_TOKEN_LIFETIME = timedelta(days=30) # TODO: change this later to 30 days
 JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 minutes
 
 LIMIT_5_A_MINUTE = "5/minute"

@@ -8,17 +8,18 @@ from app.web.custom_ui import *
 from nicegui import ui
 import inflect
 
+HOME_PAGE_NDAYS = 2
 KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
 CONTENT_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
 async def render_home(context: NavigationContext):
-    context.kind, context.sort_by, context.last_ndays = DEFAULT_KIND, DEFAULT_SORT_BY, 2 # starting default 
+    context.kind, context.sort_by = DEFAULT_KIND, DEFAULT_SORT_BY 
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_per_group(context.tags, context.kind, None, context.last_ndays, context.sort_by, start, limit)
+        return beanops.get_beans_per_group(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
     
     def apply_filter(
         filter_kind: str = MAINTAIN_VALUE,  
@@ -36,7 +37,7 @@ async def render_home(context: NavigationContext):
     render_banner(HOME_BANNER_TEXT)    
     render_content(
         context, 
-        lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
+        lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS), 
         apply_filter,
         retrieve_beans
     )   

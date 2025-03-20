@@ -22,10 +22,8 @@ class NavigationContext:
     user: User|str|None = None
     page: Barista|str = None
     
-    # filter_tags: list[str]|None = None
     kind: str|None = None
     sort_by: str|None = None
-
     query: str|None = None
     tags: list[str]|None = None
     sources: list[str]|None = None
