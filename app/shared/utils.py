@@ -27,6 +27,7 @@ class NavigationContext:
     query: str|None = None
     tags: list[str]|None = None
     sources: list[str]|None = None
+    topic: str = None
     accuracy: float|None = None
     last_ndays: int|None = None
 

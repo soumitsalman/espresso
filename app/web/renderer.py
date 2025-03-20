@@ -79,6 +79,7 @@ def create_share_func(context: NavigationContext, bean: Bean, target: str):
 
 navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
 navigate_to_barista = lambda barista_id = None, source = None, tag = None: ui.navigate.to(create_barista_target(barista_id, source, tag))
+navigate_to_source = lambda source: ui.navigate.to(create_navigation_target("/sources", feed=source))
 navigate_to_search = lambda **kwargs: ui.navigate.to(create_navigation_target("/search", **kwargs)) if kwargs else None
 
 render_banner = lambda text: ui.label( inflect_engine.join(text) if isinstance(text, list) else text).classes("text-h6")
@@ -94,8 +95,8 @@ def render_header(context: NavigationContext):
 
     barista_panel = render_navigation_panel(context)
 
-    with ui.dialog() as search_dialog, ui.card(align_items="stretch"):
-        render_search_controls(context).classes("w-full").set_value(True)        
+    with ui.dialog() as search_dialog, ui.card(align_items="stretch").classes("w-full"):
+        render_search_bar(context).classes("fit")      
         
     with ui.header(wrap=False).props("reveal").classes("justify-between items-stretch rounded-borders p-1 q-ma-xs") as header:     
         with ui.button(on_click=lambda: navigate_to("/")).props("unelevated").classes("q-px-xs"):
@@ -237,21 +238,41 @@ def render_baristas(baristas: list[Barista]):
         if baristas: render_barista_items(baristas)
     return holder 
 
-def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
+def render_barista_banner(context: NavigationContext):
+    with render_banner(context.page.title) as banner:
+        with ui.button(icon="more_vert").props("flat").classes("q-ml-md"):
+            with ui.menu():  
+                # with ui.item("Public"):
+                #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
+                with ui.item("Follow"):
+                    ui.switch(value=context.is_following, on_change=lambda: toggle_follow(context)).props("flat checked-icon=playlist_add_check").tooltip(tooltip_msg(context, "Follow")).set_enabled(context.has_follow_permission)
+                with ui.menu_item("Pour a Filtered Cup", on_click=lambda: ui.notify("Coming soon")):
+                    ui.avatar(icon="filter_list", color="transparent") 
+    return banner
+
+def render_filter_items(load_items: Callable, on_selection_changed: Callable):
     async def render():
-        tags = await run.io_bound(load_tags)
-        holder.clear()
-        if not tags: return
+        items = await run.io_bound(load_items)
+        if not items: return
         with holder:
             with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)) \
-                .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") as filter_tags:                
-                [ui.tab(tag).classes("rounded-full bg-dark q-mr-sm") for tag in tags]
-                ui.button(icon="close", color="grey-4", on_click=lambda: filter_tags.set_value(None)).props("flat dense round")
+                .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") as filter_panel:                
+                if isinstance(items, list): [ui.tab(item).classes("rounded-full bg-dark q-mr-sm") for item in items]
+                elif isinstance(items, dict): [ui.tab(k, label=v).classes("rounded-full bg-dark q-mr-sm") for k, v in items.items()]
+                ui.button(icon="close", color="grey-4", on_click=lambda: filter_panel.set_value(None)).props("flat dense round")
 
-    with ui.row(align_items="stretch", wrap=False) as holder:
-        ui.skeleton("rect", width="100%").classes("w-full h-full")
-    background_tasks.create_lazy(render(), name=f"tags-{now()}")
+    holder = ui.row(align_items="stretch", wrap=False)
+    background_tasks.create_lazy(render(), name=f"filter-items-{now()}")
     return holder
+
+def render_related_baristas(context: NavigationContext):
+    related_baristas = beanops.get_baristas(context.page.related) \
+        if (context.is_barista and context.page.related) \
+            else beanops.get_barista_recommendations(context)
+    with ui.column(align_items="stretch").classes("w-full"):
+        render_thick_separator()
+        with ui.row().classes("w-full gap-1"):
+            render_barista_items(related_baristas)
 
 def render_beans(context: NavigationContext, load_beans: Callable, container: ui.element = None):
     async def render():
@@ -328,18 +349,25 @@ def render_bean_with_related(context: NavigationContext, bean: Bean):
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
 def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: bool = False, on_read: Callable = None):
-
     async def on_expanded():
         if not expansion.value: return
         context.log("read", url=bean.url)
-        if on_read: 
-            await run.io_bound(on_read)
+
+        if bean.summary: return
+
+        beanops.load_bean_body(bean)
+        with expansion: 
+            render_bean_body(context, bean)
+
+        if on_read: await run.io_bound(on_read)
 
     with ui.expansion(value=expanded, on_value_change=on_expanded).props("dense hide-expand-icon").classes("bg-dark rounded-borders") as expansion:
         header = expansion.add_slot("header")
         with header:    
             render_bean_header(context, bean).classes(add="p-0")
-        render_bean_body(context, bean)
+        if expanded:
+            beanops.load_bean_body(bean)
+            render_bean_body(context, bean)
     return expansion
 
 def render_whole_bean(context: NavigationContext, bean: Bean):
@@ -379,7 +407,7 @@ def render_bean_body(context: NavigationContext, bean: Bean):
     return view
 
 def render_bean_tags(context: NavigationContext, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_barista_target(tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+    make_tag = lambda tag: ui.link(tag, target=create_navigation_target("/search", tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
         [make_tag(tag) for tag in random.sample(bean.tags, min(MAX_TAGS_PER_BEAN, len(bean.tags)))]
     return view
@@ -419,8 +447,8 @@ def render_bean_actions(context: NavigationContext, bean: Bean):
                 .set_enabled(context.is_registered)
 
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
-            ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_barista(source=bean.source)).props(ACTION_BUTTON_PROPS).tooltip("More from this channel")
-            ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_source(bean.source)).props(ACTION_BUTTON_PROPS).tooltip("More from this channel")
+            ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(query=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
             with ui.button(icon="share", color="secondary").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):
@@ -606,11 +634,11 @@ def _create_navigation_baristas(context: NavigationContext):
             "label": "Tags",
             "items": beanops.get_baristas(DEFAULT_TAG_BARISTAS)
         },
-        {
-            "icon": "scatter_plot",
-            "label": "Explore",
-            "items": beanops.get_barista_recommendations(context)
-        }
+        # {
+        #     "icon": "scatter_plot",
+        #     "label": "Explore",
+        #     "items": beanops.get_barista_recommendations(context)
+        # }
         
     ]
     return [item for item in items if item["items"]]

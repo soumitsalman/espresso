@@ -252,16 +252,17 @@ async def barista(request: Request, barista_id: Barista = Depends(validate_baris
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_barista_page(context)
 
-@ui.page("/baristas", title="Espresso News, Posts and Blogs")
+@ui.page("/sources", title="Espresso News, Posts and Blogs")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
-async def custom_barista(request: Request, 
-    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-    source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
+async def source_barista(
+    request: Request, 
+    feed: str = Query(..., min_length=2),
+    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
     context = create_context("cutom_barista", request)
+    context.sources = feed
     context.tags = tag
-    context.sources = source
-    await vanilla.render_custom_page(context)
+    await vanilla.render_feed_source_page(context)
 
 @ui.page("/search", title="Espresso Search")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)

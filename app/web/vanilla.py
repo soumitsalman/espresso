@@ -8,6 +8,8 @@ from app.web.custom_ui import *
 from nicegui import ui
 import inflect
 
+# TAG_FILTER = "tag"
+# TOPIC_FILTER = "source"
 HOME_PAGE_NDAYS = 2
 KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
 CONTENT_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
@@ -15,31 +17,21 @@ BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
 async def render_home(context: NavigationContext):
-    context.kind, context.sort_by = DEFAULT_KIND, DEFAULT_SORT_BY 
-
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_per_group(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
     
-    def apply_filter(
-        filter_kind: str = MAINTAIN_VALUE,  
-        filter_tags: str|list[str] = MAINTAIN_VALUE, 
-        filter_sort_by: str = MAINTAIN_VALUE
-    ):
-        if filter_kind is not MAINTAIN_VALUE:    
-            context.kind = filter_kind
-        if filter_tags is not MAINTAIN_VALUE:
-            context.tags = filter_tags
-        if filter_sort_by is not MAINTAIN_VALUE:
-            context.sort_by = filter_sort_by
+    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+        if filter_item is not MAINTAIN_VALUE:
+            context.tags = filter_item
         return context
     
     render_banner(HOME_BANNER_TEXT)    
-    render_content(
+    render_barista_contents(
         context, 
-        lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS), 
-        apply_filter,
-        retrieve_beans
+        retrieve_beans,
+        get_filter_items_func=lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS),
+        apply_filter_func=apply_filter
     )   
 
 # async def render_trending_snapshot(user):
@@ -63,107 +55,150 @@ async def render_home(context: NavigationContext):
 #                     render_error_text(NOTHING_TRENDING)                            
 #     render_footer()
 
-async def render_barista_page(context: NavigationContext):    
-    context.kind, context.sort_by = DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
-   
+async def render_barista_page(context: NavigationContext):  
+    # NOTE: experimental feature - using topic filter if the barista query is source based
+    use_topic_filter = context.page.query_sources and not context.page.query_embedding
+
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_barista_beans(context.page, context.tags, context.kind, context.sort_by, start, limit)
+        return beanops.get_barista_beans(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
+        
+    def get_filters_items():
+        if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
+        else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
 
-    def apply_filter(
-        filter_kind: str = MAINTAIN_VALUE,  
-        filter_tags: str|list[str] = MAINTAIN_VALUE, 
-        filter_sort_by: str = MAINTAIN_VALUE
-    ):
-        if filter_kind is not MAINTAIN_VALUE:    
-            context.kind = filter_kind
-        if filter_tags is not MAINTAIN_VALUE:
-            context.tags = filter_tags
-        if filter_sort_by is not MAINTAIN_VALUE:
-            context.sort_by = filter_sort_by
+    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+        if filter_item is not MAINTAIN_VALUE:
+            if use_topic_filter: context.topic = filter_item
+            else: context.tags = filter_item
         return context
             
-    with render_banner(context.page.title): 
-        with ui.button(icon="more_vert").props("flat").classes("q-ml-md"):
-            with ui.menu():  
-                # with ui.item("Public"):
-                #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
-                with ui.item("Follow"):
-                    ui.switch(value=context.is_following, on_change=lambda: toggle_follow(context)).props("flat checked-icon=playlist_add_check").tooltip(tooltip_msg(context, "Follow")).set_enabled(context.has_follow_permission)
-                with ui.menu_item("Pour a Filtered Cup", on_click=lambda: ui.notify("Coming soon")):
-                    ui.avatar(icon="filter_list", color="transparent") 
-    render_content(
-        context, 
-        lambda: beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS), 
-        apply_filter,
-        retrieve_beans
-    )
+    render_barista_banner(context)
+    render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-async def render_custom_page(context: NavigationContext): 
-    initial_tags, context.kind, context.sort_by = context.tags, DEFAULT_KIND, DEFAULT_SORT_BY
-
+async def render_feed_source_page(context: NavigationContext):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.search_beans(query=None, accuracy=None, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=None, sort_by=context.sort_by, start=start, limit=limit)
+        return beanops.get_feed_source_beans(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
+        
+    get_filters_items = lambda: {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
+
+    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+        if filter_item is not MAINTAIN_VALUE:
+            context.topic = filter_item
+        return context
+    
+    render_banner(context.sources)
+    render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
+
+# async def render_custom_page(context: NavigationContext): 
+#     initial_tags = context.tags
+#     use_topic_filter = bool(context.sources)
+
+#     def retrieve_beans(start, limit):
+#         context.log("retrieve", start=start, limit=limit)
+#         return beanops.search_beans(query=None, accuracy=None, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=None, sort_by=context.sort_by, start=start, limit=limit)
+        
+#     def get_filters_items():
+#         if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
+#         else: return beanops.search_tags(None, None, context.tags, None, context.sources, None, 0, MAX_FILTER_TAGS)
+
+#     def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+#         if filter_item is not MAINTAIN_VALUE:
+#             if use_topic_filter: context.topic = filter_item
+#             else: context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
+#         return context
+    
+#     render_banner(context.tags or context.sources)
+#     render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
+
+# def render_content(context: NavigationContext, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
+#     def apply_filter(**kwargs):
+#         apply_filter_func(**kwargs)
+#         render_beans_panel.refresh()
+
+#     @ui.refreshable
+#     def render_beans_panel():                
+#         return render_beans_as_extendable_list(
+#             context, 
+#             retrieval_func, 
+#             ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
+
+#     render_header(context)  
+        
+#     # kind and sort by filter panel
+#     with ui.row(wrap=False, align_items="stretch").classes("w-full"):
+#         ui.toggle(
+#             options=KIND_LABELS,
+#             value=DEFAULT_KIND,
+#             on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
+#         ui.toggle(
+#             options=list(beanops.SORT_BY.keys()), 
+#             value=DEFAULT_SORT_BY, 
+#             on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
+    
+#     # tag filter panel
+#     render_filter_tags(
+#         load_tags=get_tags_func, 
+#         on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)).classes("w-full")
+#     render_beans_panel()
+#     render_related_baristas(context)
+#     render_footer()
+
+def render_barista_contents(
+    context: NavigationContext, 
+    retrieve_beans_func: Callable, 
+    get_filter_items_func: Callable = None,
+    apply_filter_func: Callable = None
+):
+    context.kind, context.sort_by = DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
+
+    @ui.refreshable
+    def render_beans_panel(ctx: NavigationContext):                
+        return render_beans_as_extendable_list(
+            ctx, 
+            retrieve_beans_func, 
+            ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
     
     def apply_filter(
         filter_kind: str = MAINTAIN_VALUE,  
-        filter_tags: str|list[str] = MAINTAIN_VALUE, 
-        filter_sort_by: str = MAINTAIN_VALUE
+        filter_sort_by: str = MAINTAIN_VALUE,
+        **kwargs
     ):
+        nonlocal context
         if filter_kind is not MAINTAIN_VALUE:    
             context.kind = filter_kind
-        if filter_tags is not MAINTAIN_VALUE:
-            context.tags = [initial_tags, filter_tags] if (initial_tags and filter_tags) else (initial_tags or filter_tags)
         if filter_sort_by is not MAINTAIN_VALUE:
             context.sort_by = filter_sort_by
-        return context
-    
-    render_banner(context.tags or context.sources)
-    render_content(
-        context, 
-        lambda: beanops.search_tags(None, None, context.tags, None, context.sources, None, 0, MAX_FILTER_TAGS), 
-        apply_filter,
-        retrieve_beans
-    )
-
-def render_content(context: NavigationContext, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
-    def apply_filter(**kwargs):
-        apply_filter_func(**kwargs)
-        render_beans_panel.refresh()
-
-    @ui.refreshable
-    def render_beans_panel():                
-        return render_beans_as_extendable_list(
-            context, 
-            retrieval_func, 
-            ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
+        if kwargs:
+            context = apply_filter_func(context, **kwargs)
+        render_beans_panel.refresh(context)
 
     render_header(context)  
-        
     # kind and sort by filter panel
     with ui.row(wrap=False, align_items="stretch").classes("w-full"):
         ui.toggle(
             options=KIND_LABELS,
-            value=DEFAULT_KIND,
+            value=context.kind,
             on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
         ui.toggle(
             options=list(beanops.SORT_BY.keys()), 
-            value=DEFAULT_SORT_BY, 
+            value=context.sort_by, 
             on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
-    
-    # tag filter panel
-    render_filter_tags(
-        load_tags=get_tags_func, 
-        on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)).classes("w-full")
-    render_beans_panel()
+
+    # topic filter panel
+    if get_filter_items_func:
+        render_filter_items(
+            load_items=get_filter_items_func, 
+            on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+        ).classes("w-full")
+
+    render_beans_panel(context)
     render_related_baristas(context)
     render_footer()
- 
+
 async def render_search(context: NavigationContext): 
     initial_tags, context.kind = context.tags, beanops.DEFAULT_KIND
-    # context.last_ndays = context.last_ndays or beanops.DEFAULT_WINDOW
-    # context.accuracy = context.accuracy or beanops.DEFAULT_ACCURACY
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
@@ -192,11 +227,11 @@ async def render_search(context: NavigationContext):
     if context.query or context.tags:
         ui.toggle(
             options=KIND_LABELS, 
-            value=beanops.DEFAULT_KIND, 
+            value=context.kind, 
             on_change=lambda e: apply_filter(filter_kind=e.sender.value)
         ).props(TOGGLE_OPTIONS_PROPS+" clearable")  
-        render_filter_tags(
-            load_tags=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
+        render_filter_items(
+            load_items=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
             on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
         ).classes("w-full")
         render_search_result()
@@ -241,15 +276,6 @@ async def render_registration(context: NavigationContext):
             ui.button("Agreed", color="primary", icon="thumb_up", on_click=success).bind_enabled_from(agreement, "value").props("unelevated")
             ui.button('Nope!', color="negative", icon="cancel", on_click=cancel).props("outline")
     render_footer()
-
-def render_related_baristas(context: NavigationContext):
-    if not context.is_barista: return
-    if not context.page.related: return
-    related_baristas = beanops.get_baristas(context.page.related)
-    with ui.column(align_items="stretch").classes("w-full"):
-        render_thick_separator()
-        with ui.row().classes("w-full gap-1"):
-            render_barista_items(related_baristas)
 
 async def render_doc(user: User, doc_id: str):
     render_header(user)
