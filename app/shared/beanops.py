@@ -26,8 +26,9 @@ def initiatize(db_conn: str, db_name: str = "beansack", embedder_path: str = Non
 def get_all_kinds():
     return db.beanstore.distinct(K_KIND)
 
+@cached(max_size=1, ttl=ONE_WEEK)
 def get_all_sources():
-    return db.beanstore.distinct(K_SOURCE)
+    return sorted(db.beanstore.distinct(K_SOURCE))
 
 def get_all_tags():
     return db.beanstore.distinct(K_TAGS)

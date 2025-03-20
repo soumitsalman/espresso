@@ -22,15 +22,15 @@ class NavigationContext:
     user: User|str|None = None
     page: Barista|str = None
     
-    filter_tags: list[str]|None = None
-    filter_kind: str|None = None
-    filter_sort_by: str|None = None
+    # filter_tags: list[str]|None = None
+    kind: str|None = None
+    sort_by: str|None = None
 
-    search_query: str|None = None
-    search_tags: list[str]|None = None
-    search_sources: list[str]|None = None
-    search_accuracy: float|None = None
-    search_ndays: int|None = None
+    query: str|None = None
+    tags: list[str]|None = None
+    sources: list[str]|None = None
+    accuracy: float|None = None
+    last_ndays: int|None = None
 
     def __init__(self, page: Barista|str, user: User|str):
         self.page = page
@@ -91,13 +91,13 @@ class NavigationContext:
         extra = {
             "user_id": self.user_id,
             "page_id": self.page_id,
-            "tags": str(self.filter_tags) if self.filter_tags else None,
-            "kinds": str(self.filter_kind) if self.filter_kind else None,
-            "sort_by": self.filter_sort_by,
-            "query": self.search_query,
-            "sources": str(self.search_sources) if self.search_sources else None,
-            "accuracy": self.search_accuracy,
-            "ndays": self.search_ndays
+            "tags": str(self.tags) if self.tags else None,
+            "kinds": str(self.kind) if self.kind else None,
+            "sort_by": self.sort_by,
+            "query": self.query,
+            "sources": str(self.sources) if self.sources else None,
+            "accuracy": self.accuracy,
+            "ndays": self.last_ndays
         }
         if kwargs:
             extra.update(kwargs)

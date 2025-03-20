@@ -21,7 +21,7 @@ IMAGE_DIMENSIONS = "w-32"
 STRETCH_FIT = "w-full h-full m-0 p-0"
 ACTION_BUTTON_PROPS = "flat size=sm"
 TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=primary"
-SEARCH_BAR_PROPS = "item-aligned dense standout clearable clear-icon=close maxlength=1000"
+SEARCH_BAR_PROPS = "item-aligned standout clearable clear-icon=close maxlength=1000 rounded"
 
 GOOGLE_ICON = "img:https://www.google.com/favicon.ico"
 REDDIT_ICON = "img:https://www.reddit.com/favicon.ico"
@@ -31,7 +31,6 @@ TWITTER_ICON = "img:https://www.x.com/favicon.ico"
 WHATSAPP_ICON = "img:/images/whatsapp.png"
 ESPRESSO_ICON = "img:/images/favicon.ico"
 
-REMOVE_FILTER = "remove-filter"
 ELLISPSIS_LENGTH = 30
 
 LOGIN_OPTIONS = [
@@ -59,14 +58,13 @@ rounded_number = lambda counter: str(counter) if counter < beanops.MAX_LIMIT els
 rounded_number_with_max = lambda counter, top: str(counter) if counter <= top else str(top)+'+'
 
 def create_navigation_target(base_url: str, **kwargs) -> str:
-    if kwargs:
-        return base_url+"?"+urlencode(query={key:value for key, value in kwargs.items() if value})
-    return base_url
-
-def create_search_target(query = None, tag = None):
-    if query: return create_navigation_target("/search", query=query)
-    if tag: return create_navigation_target("/search", tag=tag)
-    return create_navigation_target("/search")
+    if not kwargs: return base_url
+    kwargs = {key: value for key, value in kwargs.items() if value}
+    params = []
+    for key, value in kwargs.items():
+        if isinstance(value, list): params.extend([(key, v) for v in value if v])
+        else: params.append((key, value))
+    return base_url+"?"+urlencode(params)
 
 def create_barista_target(barista_id = None, source = None, tag = None):
     if barista_id: return f"/baristas/{barista_id}"
@@ -81,7 +79,7 @@ def create_share_func(context: NavigationContext, bean: Bean, target: str):
 
 navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
 navigate_to_barista = lambda barista_id = None, source = None, tag = None: ui.navigate.to(create_barista_target(barista_id, source, tag))
-navigate_to_search = lambda query = None, tags = None: ui.navigate.to(create_search_target(query, tags))
+navigate_to_search = lambda **kwargs: ui.navigate.to(create_navigation_target("/search", **kwargs)) if kwargs else None
 
 render_banner = lambda text: ui.label( inflect_engine.join(text) if isinstance(text, list) else text).classes("text-h6")
 render_thick_separator = lambda: ui.separator().style("height: 5px;").classes("w-full")
@@ -95,16 +93,19 @@ def render_header(context: NavigationContext):
     ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)    
 
     barista_panel = render_navigation_panel(context)
+
+    with ui.dialog() as search_dialog, ui.card(align_items="stretch"):
+        render_search_controls(context).classes("w-full").set_value(True)        
         
     with ui.header(wrap=False).props("reveal").classes("justify-between items-stretch rounded-borders p-1 q-ma-xs") as header:     
-        with ui.button(on_click=barista_panel.toggle).props("unelevated").classes("q-px-xs"):
+        with ui.button(on_click=lambda: navigate_to("/")).props("unelevated").classes("q-px-xs"):
             with ui.avatar(square=True, size="md").classes("rounded-borders"):
                 ui.image("images/cafecito.png")
             ui.label("Espresso").classes("q-ml-sm")
             
-        ui.button(icon="home_outlined", on_click=lambda: navigate_to("/")).props("unelevated").classes("lt-sm")
-        ui.button(icon="search_outlined", on_click=navigate_to_search).props("unelevated").classes("lt-sm")
-        render_search_bar(context, navigate_to_search).classes("w-1/2 p-0 gt-xs")
+        ui.button(icon="local_cafe_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
+        ui.button(icon="search_outlined", on_click=search_dialog.open).props("unelevated").classes("lt-sm")
+        render_search_bar(context).props("dense").classes("w-1/2 p-0 gt-xs")
 
         if context.is_registered: render_user(context.user)
         else: render_login()
@@ -119,7 +120,7 @@ def render_login():
     return view
 
 def render_user(user: User):
-    with ui.button(icon="person").props("unelevated") as view:
+    with ui.button(icon="perm_identity").props("unelevated") as view:
         # with ui.avatar(color="transparent", rounded=True, size="md") as view:
         #     ui.image(user.image_url) if user.image_url else ui.icon("person")
         with ui.menu():
@@ -179,15 +180,46 @@ def render_navigation_panel(context: NavigationContext):
         
     return navigation_panel  
 
-def render_search_bar(context: NavigationContext, search_func: Callable):
-    trigger_search = lambda: search_func(search_input.value)
-    with ui.input(placeholder=SEARCH_BEANS_PLACEHOLDER, value=context.search_query) \
+def render_search_controls(context: NavigationContext):
+    search_func = lambda: navigate_to_search(query=query.value, acc=accuracy.value, ndays=last_ndays.value, source=sources.value)
+   
+    with ui.expansion(value=False).props("dense expand-icon=tune expand-icon-toggle expand-separator") as panel:
+        header = panel.add_slot("header")
+        with header:
+            query = render_search_input(context, search_func).classes("w-full")
+
+        with ui.grid(columns=2).classes("w-full"):  
+            with ui.list():
+                with ui.item():
+                    with ui.item_section().props("avatar"):
+                        ui.icon("explore", color="secondary")
+                    with ui.item_section() as accuracy_container:
+                        accuracy = ui.slider(min=0.1, max=1.0, step=0.05, value=context.accuracy or DEFAULT_ACCURACY)
+                        accuracy_container.bind_text_from(accuracy, "value", lambda v: f"Accuracy: {v}")
+                with ui.item():
+                    with ui.item_section().props("avatar"):
+                        ui.icon("date_range", color="secondary")
+                    with ui.item_section() as last_ndays_container:
+                        last_ndays = ui.slider(min=MIN_WINDOW, max=MAX_WINDOW, step=1, value=context.last_ndays or DEFAULT_WINDOW).props("reverse")
+                        last_ndays_container.bind_text_from(last_ndays, "value", 
+                            lambda v: f"Since {(datetime.now() - timedelta(days=v)).strftime('%b %d')}")
+            sources = ui.select(options=beanops.get_all_sources(), value=context.sources, label="Feeds", with_input=True, multiple=True, clearable=True) \
+                .props("standout max-values=20 dropdown-icon=rss_feed dense clear-icon=close").classes("text-caption")
+    return panel
+
+def render_search_bar(context: NavigationContext):
+    search_func = lambda: navigate_to_search(query=search_input.value)
+    search_input = render_search_input(context, search_func)
+    return search_input
+
+def render_search_input(context: NavigationContext, trigger_search: Callable):
+    with ui.input(placeholder=SEARCH_BEANS_PLACEHOLDER, value=context.query) \
         .on("keydown.enter", trigger_search) \
         .props(SEARCH_BAR_PROPS) \
         as search_input:    
         prepend = search_input.add_slot("prepend")   
         with prepend:
-            ui.button(icon="search", color="secondary", on_click=trigger_search).bind_visibility_from(search_input, "value").props("flat dense").classes("m-0")
+            ui.button(icon="search", color="secondary", on_click=trigger_search).bind_visibility_from(search_input, "value").props("round flat dense").classes("m-0")
     return search_input
 
 def render_barista_search_bar(search_func: Callable):
@@ -212,12 +244,11 @@ def render_filter_tags(load_tags: Callable, on_selection_changed: Callable):
         if not tags: return
         with holder:
             with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)) \
-                .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") \
-                .classes("bg-dark rounded-borders") as filter_tags:                
-                [ui.tab(tag) for tag in tags]
-                ui.button(icon="close", color="grey-4", on_click=lambda: filter_tags.set_value(REMOVE_FILTER)).props("flat dense")
+                .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") as filter_tags:                
+                [ui.tab(tag).classes("rounded-full bg-dark q-mr-sm") for tag in tags]
+                ui.button(icon="close", color="grey-4", on_click=lambda: filter_tags.set_value(None)).props("flat dense round")
 
-    with ui.row(align_items="stretch", wrap=False).classes("gap-1") as holder:
+    with ui.row(align_items="stretch", wrap=False) as holder:
         ui.skeleton("rect", width="100%").classes("w-full h-full")
     background_tasks.create_lazy(render(), name=f"tags-{now()}")
     return holder
@@ -256,7 +287,7 @@ def render_beans_as_extendable_list(context: NavigationContext, load_beans: Call
 
     with ui.column() as view:
         beans_panel = render_beans(context, current_page, container).classes("w-full")
-        more_btn = ui.button("More Stories", on_click=next_page).props("icon-right=chevron_right")
+        more_btn = ui.button("More Stories", on_click=next_page).props("rounded no-caps icon-right=chevron_right")
     return view  
 
 def render_beans_as_paginated_list(context: NavigationContext, load_beans: Callable, count_items: Callable):    
@@ -543,7 +574,7 @@ def disable_button(button: ui.button):
         button.props(remove="loading")
         button.enable()
 
-def debounce(func, wait):
+def create_debounce(func, wait):
     last_call = None
     def debounced(*args, **kwargs):
         nonlocal last_call

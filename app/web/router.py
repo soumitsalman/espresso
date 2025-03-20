@@ -259,8 +259,8 @@ async def custom_barista(request: Request,
     source: str | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
     context = create_context("cutom_barista", request)
-    context.search_tags = tag
-    context.search_sources = source
+    context.tags = tag
+    context.sources = source
     await vanilla.render_custom_page(context)
 
 @ui.page("/search", title="Espresso Search")
@@ -268,14 +268,16 @@ async def custom_barista(request: Request,
 async def search(request: Request, 
     query: str = None,
     acc: float = Query(ge=0, le=1, default=beanops.DEFAULT_ACCURACY),
+    ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=beanops.DEFAULT_WINDOW),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-    ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=beanops.DEFAULT_WINDOW)
+    source: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
     context = create_context("search", request)
-    context.search_query = query
-    context.search_accuracy = acc
-    context.search_tags = tag
-    context.search_ndays = ndays
+    context.query = query
+    context.accuracy = acc
+    context.last_ndays = ndays
+    context.tags = tag
+    context.sources = source
     await vanilla.render_search(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
