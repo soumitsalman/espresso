@@ -101,7 +101,7 @@ def render_header(context: NavigationContext):
     with ui.header(wrap=False).props("reveal").classes("justify-between items-stretch rounded-borders p-1 q-ma-xs") as header:     
         with ui.button(on_click=lambda: navigate_to("/")).props("unelevated").classes("q-px-xs"):
             with ui.avatar(square=True, size="md").classes("rounded-borders"):
-                ui.image("images/cafecito.png")
+                ui.image("images/cafecito.jpeg")
             ui.label("Espresso").classes("q-ml-sm")
             
         ui.button(icon="local_cafe_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")

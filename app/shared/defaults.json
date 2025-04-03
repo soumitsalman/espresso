@@ -1,0 +1,62 @@
+{
+    "DEFAULT_ACCURACY": 0.675,
+    "DEFAULT_WINDOW": 7,
+    "DEFAULT_LIMIT": 10,
+    "DEFAULT_KIND": null,
+    "DEFAULT_SORT_BY": "Trending",  
+
+    "DEFAULT_TOPICS": [ 
+        "artificial-intelligence",
+        "automotive",
+        "aviation---aerospace",
+        "business---finance",
+        "career---professional-skills",
+        "cryptocurrency---blockchain",
+        "cybersecurity",    
+        "environment---clean-energy",
+        "food---health",
+        "gadgets---iot",
+        "government---politics",
+        "hpc---datacenters",
+        "leadership---people-management",
+        "logistics---transportation",
+        "robotics---manufacturing",
+        "science---mathematics",
+        "software-engineering",
+        "solar-energy",
+        "startups---vcs",
+        "video-games---virtual-reality"
+    ],
+    "DEFAULT_OUTLETS": [
+        "business-insider",
+        "bloomberg",
+        "amazon",
+        "apple",
+        "google",
+        "hackernews",
+        "huggingface",                
+        "microsoft",
+        "finsmes",
+        "venturebeat",
+        "reddit"
+    ],
+    "DEFAULT_TAGS": [
+        "bitcoin",
+        "elon-musk",
+        "donald-trump",
+        "doge"
+    ],
+
+    "DEFAULT_TOPIC_FILTERS": [ 
+        "artificial-intelligence",
+        "business---finance",
+        "cryptocurrency---blockchain",
+        "cybersecurity",    
+        "environment---clean-energy",
+        "gadgets---iot",
+        "government---politics",
+        "science---mathematics",
+        "software-engineering",
+        "startups---vcs"
+    ]
+}

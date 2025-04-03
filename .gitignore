@@ -1,7 +1,4 @@
-*.env
-*.json
-*.log
-*__pycache__
+.env
 .venv
 .vscode
 .deployment
@@ -9,5 +6,7 @@
 .nicegui
 .models
 .slack
+*.log
+*__pycache__
 
 
