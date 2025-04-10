@@ -177,7 +177,7 @@ def render_navigation_panel(context: NavigationContext):
                         with ui.tab_panel(item['label']).classes(STRETCH_FIT):
                             render_baristas(item['items']).classes(STRETCH_FIT)
 
-        tabs.set_value(navigation_items[0]['label'])
+        if navigation_items: tabs.set_value(navigation_items[0]['label'])
         
     return navigation_panel  
 
