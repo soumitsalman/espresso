@@ -615,7 +615,7 @@ def create_debounce(func, wait):
 def _create_navigation_baristas(context: NavigationContext):
     items = [
         {
-            "icon": "local_cafe_outlined",
+            "icon": "web_stories", # local_cafe_outlined # newsstand # web_stories # bookmarks # browse
             "label": "Following",
             "items": beanops.get_following_baristas(context.user) if context.is_registered else None
         },
