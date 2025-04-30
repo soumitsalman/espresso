@@ -381,7 +381,7 @@ def render_bean_header(context: NavigationContext, bean: Bean):
         if bean.image_url: 
             ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
-            ui.label(bean.title).classes("bean-title")                
+            ui.label(bean.gist or bean.title).classes("bean-title")                
             render_bean_stats(context, bean).classes("text-caption") 
             render_bean_source(context, bean).classes("text-caption") 
     return view

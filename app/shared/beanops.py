@@ -11,7 +11,7 @@ import threading
 SORT_BY = {"Latest": NEWEST_AND_TRENDING, "Trending": LATEST_AND_TRENDING}
 # PROJECTION = {K_EMBEDDING: 0, K_TEXT:0, K_ID: 0}
 BEAN_BODY_FIELDS = {K_ID: 1, K_TAGS: 1, K_SUMMARY: 1}
-BEAN_HEADER_FIELDS = {K_URL: 1, K_TITLE: 1, K_KIND: 1, K_IMAGEURL: 1, K_AUTHOR: 1, K_SOURCE: 1, K_CREATED: 1, K_LIKES: 1, K_COMMENTS: 1, K_SHARES: 1}
+BEAN_HEADER_FIELDS = {K_URL: 1, K_TITLE: 1, "gist": 1, K_KIND: 1, K_IMAGEURL: 1, K_AUTHOR: 1, K_SOURCE: 1, K_CREATED: 1, K_LIKES: 1, K_COMMENTS: 1, K_SHARES: 1}
 BEAN_SEARCH_FIELDS = {K_URL: 1, K_TAGS: 1, K_EMBEDDING: 1}
 
 db: Beansack = None
@@ -103,6 +103,7 @@ def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|
                 "author": "$doc.author",
                 "created": "$doc.created",
                 "updated": "$doc.updated",
+                "gist": "$doc.gist",
                 "likes": "$doc.likes",
                 "comments": "$doc.comments",
                 "shares": "$doc.shares"
