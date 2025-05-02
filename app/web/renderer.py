@@ -13,7 +13,20 @@ from app.shared import beanops
 from app.web.custom_ui import SwitchButton
 from icecream import ic
 
+
 CSS_FILE = "./app/web/styles.css"
+
+GOOGLE_ANALYTICS_SCRIPT = '''
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NBSTNYWPG1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-NBSTNYWPG1');
+</script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+'''
 
 PRIMARY_COLOR = "#4e392a"
 SECONDARY_COLOR = "#b79579"
