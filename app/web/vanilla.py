@@ -1,6 +1,6 @@
 from app.shared.messages import *
 from app.shared.env import *
-from app.shared import beanops
+from app.web import beanops
 from app.pybeansack.models import *
 from app.pybeansack.mongosack import LATEST_AND_TRENDING, NEWEST_AND_TRENDING
 from app.web.renderer import *
@@ -19,7 +19,7 @@ MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 async def render_home(context: NavigationContext):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_per_group(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
+        return beanops.get_beans_for_home(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
     
     def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
@@ -30,7 +30,7 @@ async def render_home(context: NavigationContext):
     render_barista_contents(
         context, 
         retrieve_beans,
-        get_filter_items_func=lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS),
+        # get_filter_items_func=lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS),
         apply_filter_func=apply_filter
     )   
 
@@ -61,11 +61,11 @@ async def render_barista_page(context: NavigationContext):
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_barista_beans(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
+        return beanops.get_beans_for_barista(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
         
     def get_filters_items():
         if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
-        else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
+        # else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
 
     def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
@@ -79,7 +79,7 @@ async def render_barista_page(context: NavigationContext):
 async def render_feed_source_page(context: NavigationContext):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_feed_source_beans(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
+        return beanops.get_beans_for_source(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
         
     get_filters_items = lambda: {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
 
@@ -230,10 +230,10 @@ async def render_search(context: NavigationContext):
             value=context.kind, 
             on_change=lambda e: apply_filter(filter_kind=e.sender.value)
         ).props(TOGGLE_OPTIONS_PROPS+" clearable")  
-        render_filter_items(
-            load_items=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
-            on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
-        ).classes("w-full")
+        # render_filter_items(
+        #     load_items=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
+        #     on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
+        # ).classes("w-full")
         render_search_result()
     
     render_footer()

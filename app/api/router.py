@@ -3,6 +3,7 @@ import re
 from icecream import ic
 from azure.monitor.opentelemetry import configure_azure_monitor
 from app.shared.env import *
+from app.web import beanops
 
 if APPINSIGHTS_CONNECTION_STRING:
     configure_azure_monitor(
@@ -102,7 +103,7 @@ case_insensitive = lambda items: {"$in": [re.compile(item, re.IGNORECASE) for it
 
 import uvicorn
 from fastapi import FastAPI, Query
-from app.shared import beanops, utils, messages
+from app.shared import utils, messages
 
 router = FastAPI(title=APP_NAME, version="0.0.1", description="API for Espresso (Alpha)")
 

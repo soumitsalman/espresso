@@ -1,23 +1,19 @@
-from optimum.onnxruntime import ORTModelForFeatureExtraction
-from transformers import AutoTokenizer
-from app.shared import env
 import threading
+from sentence_transformers import SentenceTransformer
+from memoization import cached
+from app.shared import env
+from app.shared.utils import CACHE_SIZE, HALF_HOUR
 
 # Initialize the model and tokenizer globally
-tokenizer: AutoTokenizer = None 
-embedder: ORTModelForFeatureExtraction = None
+embedder: SentenceTransformer = None
 embedder_lock = threading.Lock()
 
+@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def embed(query: str) -> list[float]:
     """Generate embeddings using the ONNX model."""
-    global embedder, tokenizer
-    # with embedder_lock:
-    if embedder == None:
-        embedder = ORTModelForFeatureExtraction.from_pretrained(env.EMBEDDER_PATH)
-        tokenizer = AutoTokenizer.from_pretrained(env.EMBEDDER_PATH)
-
-    inputs = tokenizer(query, return_tensors="pt", padding=True, truncation=True)
-    outputs = embedder(**inputs)
-    # Assuming the embedding is in the first output tensor
-    embedding = outputs.last_hidden_state.mean(dim=1).squeeze().tolist()
-    return embedding
+    global embedder
+    with embedder_lock:
+        if not embedder:
+            embedder = SentenceTransformer(env.EMBEDDER_PATH, cache_folder=".models", tokenizer_kwargs={"truncation": True})
+        vec = embedder.encode("query: "+query)
+    return vec

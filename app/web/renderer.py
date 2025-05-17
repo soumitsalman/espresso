@@ -9,7 +9,7 @@ from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.messages import *
 from app.shared.env import *
-from app.shared import beanops
+from app.web import beanops
 from app.web.custom_ui import SwitchButton
 from icecream import ic
 
@@ -292,9 +292,8 @@ def render_beans(context: NavigationContext, load_beans: Callable, container: ui
         beans = await run.io_bound(load_beans)
         container.clear()
         with container:
-            if not beans:
-                ui.label(NOTHING_FOUND).classes("w-full text-center") 
-            [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
+            if not beans: ui.label(NOTHING_FOUND).classes("w-full text-center") 
+            else: [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
 
     container = container or ui.column(align_items="stretch")
     with container:
@@ -362,15 +361,16 @@ def render_bean_with_related(context: NavigationContext, bean: Bean):
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
 def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: bool = False, on_read: Callable = None):
+    body_loaded = False
     async def on_expanded():
+        nonlocal body_loaded
         if not expansion.value: return
         context.log("read", url=bean.url)
 
-        if bean.summary: return
-
-        beanops.load_bean_body(bean)
+        if body_loaded: return
         with expansion: 
-            render_bean_body(context, bean)
+            render_bean_body(context, beanops.load_bean_body(bean))
+            body_loaded = True
 
         if on_read: await run.io_bound(on_read)
 
@@ -379,7 +379,6 @@ def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: boo
         with header:    
             render_bean_header(context, bean).classes(add="p-0")
         if expanded:
-            beanops.load_bean_body(bean)
             render_bean_body(context, bean)
     return expansion
 
@@ -394,7 +393,7 @@ def render_bean_header(context: NavigationContext, bean: Bean):
         if bean.image_url: 
             ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
-            ui.label(bean.gist or bean.title).classes("bean-title")                
+            ui.label(bean.title).classes("bean-title")                
             render_bean_stats(context, bean).classes("text-caption") 
             render_bean_source(context, bean).classes("text-caption") 
     return view

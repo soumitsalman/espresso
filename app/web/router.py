@@ -10,10 +10,10 @@ if APPINSIGHTS_CONNECTION_STRING:
 logger: logging.Logger = logging.getLogger(APP_NAME)
 logger.setLevel(logging.INFO)
 
-from app.web import vanilla
+from app.web import beanops, vanilla
 from app.pybeansack.models import User, Barista
 from app.shared.utils import NavigationContext, log
-from app.shared import beanops, messages
+from app.shared import messages
 
 import jwt
 from datetime import datetime, timedelta
@@ -61,7 +61,7 @@ def decode_jwt_token(token: str):
 
 @app.on_startup
 def initialize_server():    
-    beanops.initiatize(DB_CONNECTION_STRING, DB_NAME, EMBEDDER_PATH)
+    beanops.initiatize(ic(DB_CONNECTION_STRING), DB_NAME)
 
     oauth.register(
         "google",

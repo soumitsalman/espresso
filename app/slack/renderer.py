@@ -1,7 +1,8 @@
 from itertools import chain
+from app.web import beanops
 from shared import utils
 from shared.utils import *
-from shared import espressops, beanops, messages
+from shared import espressops, messages
 from icecream import ic
 import logging
 from datetime import datetime as dt

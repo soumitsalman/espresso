@@ -2,8 +2,9 @@ from icecream import ic
 from dotenv import load_dotenv
 load_dotenv()
 
+from app.web import beanops
 from pybeansack.embedding import BeansackEmbeddings
-from shared import beanops, espressops, messages, prompt_parser, utils
+from shared import espressops, messages, prompt_parser, utils
 from datetime import datetime as dt
 
 APP_NAME = "Espresso:"
