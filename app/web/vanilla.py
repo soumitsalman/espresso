@@ -1,284 +1,312 @@
-from app.shared.messages import *
+import os
+import logging
+from icecream import ic
+from app.web import beanops, vanilla_pages
+from app.pybeansack.models import User, Channel
+from app.shared.utils import NavigationContext, log
+from app.shared import messages
 from app.shared.env import *
-from app.web import beanops
-from app.pybeansack.models import *
-from app.pybeansack.mongosack import LATEST_AND_TRENDING, NEWEST_AND_TRENDING
-from app.web.renderer import *
-from app.web.custom_ui import *
-from nicegui import ui
-import inflect
 
-# TAG_FILTER = "tag"
-# TOPIC_FILTER = "source"
-HOME_PAGE_NDAYS = 2
-KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
-CONTENT_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
-BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
-MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
+import jwt
+from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, Query
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import Request
+from starlette.responses import RedirectResponse, FileResponse, PlainTextResponse
+from authlib.integrations.starlette_client import OAuth
+from nicegui import ui, app
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_ipaddr
 
-async def render_home(context: NavigationContext):
-    def retrieve_beans(start, limit):
-        context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_home(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
+REGISTRATION_INFO_KEY = "registration_info"
+
+JWT_TOKEN_KEY = 'espressotoken'
+JWT_TOKEN_LIFETIME = timedelta(days=30) # TODO: change this later to 30 days
+JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 minutes
+
+LIMIT_5_A_MINUTE = "5/minute"
+LIMIT_10_A_MINUTE = "10/minute"
+
+logger: logging.Logger = logging.getLogger(config.app.name)
+logger.setLevel(logging.INFO)
+
+jwt_token_exp = lambda: datetime.now() + JWT_TOKEN_LIFETIME
+jwt_token_needs_refresh = lambda data: (datetime.now() - JWT_TOKEN_REFRESH_WINDOW).timestamp() < data['exp']
+get_unauthenticated_user = lambda request: app.storage.browser.get("id") or get_ipaddr(request)
+
+oauth = OAuth()
+limiter = Limiter(key_func=get_unauthenticated_user, swallow_errors=True)
+
+def create_jwt_token(email: str):
+    data = {
+        "email": email,
+        "iat": datetime.now(),
+        "exp": jwt_token_exp()
+    }
+    return jwt.encode(data, config.app.storage_secret, algorithm="HS256")
+
+def decode_jwt_token(token: str):
+    try:
+        data = jwt.decode(token, config.app.storage_secret, algorithms=["HS256"], verify=True)
+        return data if (data and "email" in data) else None
+    except Exception as err:
+        log("jwt_token_decode_error", user_id=app.storage.browser.get("id"), error=str(err))
+        return None
+
+@app.on_startup
+def initialize_server():    
+    if hasattr(config.oauth, 'google'):
+        oauth.register(
+            "google",
+            client_id=config.oauth.google.client_id,
+            client_secret=config.oauth.google.client_secret,        
+            server_metadata_url=GOOGLE_SERVER_METADATA_URL,
+            authorize_url=GOOGLE_AUTHORIZE_URL,
+            access_token_url=GOOGLE_ACCESS_TOKEN_URL,
+            api_base_url=GOOGLE_API_BASE_URL,
+            userinfo_endpoint=GOOGLE_USERINFO_ENDPOINT,
+            client_kwargs=GOOGLE_OAUTH_SCOPE,
+            user_agent=config.app.name
+        )    
+    if hasattr(config.oauth, 'slack'):
+        oauth.register(
+        "slack",
+        client_id=config.oauth.slack.client_id,
+        client_secret=config.oauth.slack.client_secret,
+        server_metadata_url=SLACK_SERVER_METADATA_URL,
+        authorize_url=SLACK_AUTHORIZE_URL,
+        access_token_url=SLACK_ACCESS_TOKEN_URL,
+        api_base_url=SLACK_API_BASE_URL,
+        client_kwargs=SLACK_OAUTH_SCOPE,
+        user_agent=config.app.name
+    )
+    if hasattr(config.oauth, 'linkedin'):
+        oauth.register(
+        "linkedin",
+        client_id=config.oauth.linkedin.client_id,
+        client_secret=config.oauth.linkedin.client_secret,
+        authorize_url=LINKEDIN_AUTHORIZE_URL,
+        access_token_url=LINKEDIN_ACCESS_TOKEN_URL,
+        api_base_url=LINKEDIN_API_BASE_URL,
+        client_kwargs=LINKEDIN_OAUTH_SCOPE,
+        user_agent=config.app.name
+    )
+    if hasattr(config.oauth, 'reddit'):
+        oauth.register(
+        name="reddit",
+        client_id=config.oauth.reddit.client_id,
+        client_secret=config.oauth.reddit.client_secret,
+        authorize_url=REDDIT_AUTHORIZE_URL,
+        access_token_url=REDDIT_ACCESS_TOKEN_URL, 
+        api_base_url=REDDIT_API_BASE_URL,
+        client_kwargs=REDDIT_OAUTH_SCOPE,
+        user_agent=config.app.name
+    )    
     
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
-        if filter_item is not MAINTAIN_VALUE:
-            context.tags = filter_item
-        return context
+    logger.info("server_initialized")
+
+def validate_barista(barista_id: str) -> Channel:
+    barista_id = barista_id.lower()
+    barista = beanops.db.get_barista(barista_id)
+    if not barista:
+        raise HTTPException(status_code=404, detail=f"{barista_id} not found")
+    return barista
+
+def validate_doc(doc_id: str):
+    if not bool(os.path.exists(f"docs/{doc_id}")):
+        raise HTTPException(status_code=404, detail=f"{doc_id} not found")
+    return f"./docs/{doc_id}"
+
+def validate_image(image_id: str):
+    if not bool(os.path.exists(f"images/{image_id}")):
+        raise HTTPException(status_code=404, detail=f"{image_id} not found")
+    return f"./images/{image_id}"
+
+def validate_registration():
+    userinfo = app.storage.browser.get(REGISTRATION_INFO_KEY)
+    if not userinfo:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    del app.storage.browser[REGISTRATION_INFO_KEY]
+    return userinfo
+
+def validate_authenticated_user():
+    token = app.storage.browser.get(JWT_TOKEN_KEY)
+    if not token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    data = decode_jwt_token(token)
+    if not data:
+        del app.storage.browser[JWT_TOKEN_KEY]
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user = beanops.db.get_user(data["email"])
+    if not user:
+        del app.storage.browser[JWT_TOKEN_KEY]
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return user
+
+def create_context(page_id: str|Channel, request: Request) -> NavigationContext:
+    try:
+        user = validate_authenticated_user()
+    except:
+        user = get_unauthenticated_user(request)
+    return NavigationContext(page_id, user)
+
+def login_user(user: dict|User):
+    email = user.email if isinstance(user, User) else user['email']
+    app.storage.browser[JWT_TOKEN_KEY] = create_jwt_token(email)
+    log("login_user", user_id=email)
+
+def process_oauth_result(result: dict):
+    existing_user = beanops.db.get_user(result['userinfo']['email'], result['userinfo']['iss'])
+    if existing_user:
+        login_user(existing_user)        
+        return RedirectResponse("/")
+    else:
+        login_user(result['userinfo'])
+        app.storage.browser[REGISTRATION_INFO_KEY] = result['userinfo']
+        return RedirectResponse("/user/register")
+
+@app.get("/oauth/google/login")
+async def google_oauth_login(request: Request):
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="google")
+    return await oauth.google.authorize_redirect(request, config.app.base_url + "/oauth/google/redirect")
+
+@app.get("/oauth/google/redirect")
+async def google_oauth_redirect(request: Request):
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        return process_oauth_result(token)
+    except Exception as err:
+        log("oauth_error", user_id=get_ipaddr(request), provider="google", error=str(err))
+        return RedirectResponse("/")
+
+@app.get("/oauth/slack/login")
+async def slack_oauth_login(request: Request):
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="slack")
+    return await oauth.slack.authorize_redirect(request, config.app.base_url + "/oauth/slack/redirect")
+
+@app.get("/oauth/slack/redirect")
+async def slack_oauth_redirect(request: Request):
+    try:
+        token = await oauth.slack.authorize_access_token(request)
+        return process_oauth_result(token)  
+    except Exception as err:
+        log("oauth_error", user_id=get_unauthenticated_user(request), provider="slack", error=str(err))
+        return RedirectResponse("/")
     
-    render_banner(HOME_BANNER_TEXT)    
-    render_barista_contents(
-        context, 
-        retrieve_beans,
-        # get_filter_items_func=lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS),
-        apply_filter_func=apply_filter
-    )   
+@app.get("/oauth/linkedin/login")
+async def linkedin_oauth_login(request: Request):
+    log("oauth_login", user_id=get_unauthenticated_user(request), provider="linkedin")
+    return await oauth.linkedin.authorize_redirect(request, config.app.base_url + "/oauth/linkedin/redirect")
 
-# async def render_trending_snapshot(user):
-#     render_header(user)
-#     with ui.grid().classes(CONTENT_GRID_CLASSES):
-#         baristas = beanops.get_baristas(user)
-#         for barista in baristas:
-#             with render_card_container(barista.title, on_click=lambda: navigate_to_barista(barista.id), header_classes="text-wrap bg-dark").classes("bg-transparent"):
-#                 if beanops.count_beans(query=None, embedding=barista.embedding, accuracy=barista.accuracy, tags=barista.tags, kinds=None, sources=None, last_ndays=1, limit=1):  
-#                     get_beans_func = lambda b=barista: beanops.get_newest_beans(
-#                         embedding=b.embedding, 
-#                         accuracy=b.accuracy, 
-#                         tags=b.tags, 
-#                         kinds=None, 
-#                         sources=b.sources, 
-#                         last_ndays=beanops.MIN_WINDOW, 
-#                         start=0, 
-#                         limit=beanops.MIN_LIMIT)
-#                     render_beans(user, get_beans_func)
-#                 else:
-#                     render_error_text(NOTHING_TRENDING)                            
-#     render_footer()
+@app.get("/oauth/linkedin/redirect")
+async def linkedin_oauth_redirect(request: Request):
+    try:
+        token = await oauth.linkedin.authorize_access_token(request)
+        return process_oauth_result(token) 
+    except Exception as err:
+        log("oauth_error", user_id=get_unauthenticated_user(request), provider="linkedin", error=str(err))
+        return RedirectResponse("/")
 
-async def render_barista_page(context: NavigationContext):  
-    # NOTE: experimental feature - using topic filter if the barista query is source based
-    use_topic_filter = context.page.query_sources and not context.page.query_embedding
+@app.get("/user/me/logout")
+async def logout_user(user: beanops.User|str = Depends(validate_authenticated_user)):
+    log("logout_user", user_id=user)
+    if JWT_TOKEN_KEY in app.storage.browser:
+        del app.storage.browser[JWT_TOKEN_KEY]
+    return RedirectResponse("/")
 
-    def retrieve_beans(start, limit):
-        context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_barista(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
-        
-    def get_filters_items():
-        if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
-        # else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
+@app.get("/user/me/delete")
+async def delete_user(user: beanops.User|str = Depends(validate_authenticated_user)):
+    log("delete_user", user_id=user)
+    beanops.db.delete_user(user.email)
+    if JWT_TOKEN_KEY in app.storage.browser:
+        del app.storage.browser[JWT_TOKEN_KEY]
+    return RedirectResponse("/")
 
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
-        if filter_item is not MAINTAIN_VALUE:
-            if use_topic_filter: context.topic = filter_item
-            else: context.tags = filter_item
-        return context
-            
-    render_barista_banner(context)
-    render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
-
-async def render_feed_source_page(context: NavigationContext):
-    def retrieve_beans(start, limit):
-        context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_source(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
-        
-    get_filters_items = lambda: {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
-
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
-        if filter_item is not MAINTAIN_VALUE:
-            context.topic = filter_item
-        return context
-    
-    render_banner(context.sources)
-    render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
-
-# async def render_custom_page(context: NavigationContext): 
-#     initial_tags = context.tags
-#     use_topic_filter = bool(context.sources)
-
-#     def retrieve_beans(start, limit):
-#         context.log("retrieve", start=start, limit=limit)
-#         return beanops.search_beans(query=None, accuracy=None, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=None, sort_by=context.sort_by, start=start, limit=limit)
-        
-#     def get_filters_items():
-#         if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
-#         else: return beanops.search_tags(None, None, context.tags, None, context.sources, None, 0, MAX_FILTER_TAGS)
-
-#     def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
-#         if filter_item is not MAINTAIN_VALUE:
-#             if use_topic_filter: context.topic = filter_item
-#             else: context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
-#         return context
-    
-#     render_banner(context.tags or context.sources)
-#     render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
-
-# def render_content(context: NavigationContext, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
-#     def apply_filter(**kwargs):
-#         apply_filter_func(**kwargs)
-#         render_beans_panel.refresh()
-
-#     @ui.refreshable
-#     def render_beans_panel():                
-#         return render_beans_as_extendable_list(
-#             context, 
-#             retrieval_func, 
-#             ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
-
-#     render_header(context)  
-        
-#     # kind and sort by filter panel
-#     with ui.row(wrap=False, align_items="stretch").classes("w-full"):
-#         ui.toggle(
-#             options=KIND_LABELS,
-#             value=DEFAULT_KIND,
-#             on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
-#         ui.toggle(
-#             options=list(beanops.SORT_BY.keys()), 
-#             value=DEFAULT_SORT_BY, 
-#             on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
-    
-#     # tag filter panel
-#     render_filter_tags(
-#         load_tags=get_tags_func, 
-#         on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)).classes("w-full")
-#     render_beans_panel()
-#     render_related_baristas(context)
-#     render_footer()
-
-def render_barista_contents(
-    context: NavigationContext, 
-    retrieve_beans_func: Callable, 
-    get_filter_items_func: Callable = None,
-    apply_filter_func: Callable = None
+@app.get("/docs/{doc_id}")
+async def document(request: Request,
+    doc_id: str = Depends(validate_doc, use_cache=True)
 ):
-    context.kind, context.sort_by = DEFAULT_KIND, DEFAULT_SORT_BY # starting default values
-
-    @ui.refreshable
-    def render_beans_panel(ctx: NavigationContext):                
-        return render_beans_as_extendable_list(
-            ctx, 
-            retrieve_beans_func, 
-            ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
+    context = create_context(doc_id, request)
+    context.log('read doc')
+    return FileResponse(doc_id, media_type="text/markdown")
     
-    def apply_filter(
-        filter_kind: str = MAINTAIN_VALUE,  
-        filter_sort_by: str = MAINTAIN_VALUE,
-        **kwargs
-    ):
-        nonlocal context
-        if filter_kind is not MAINTAIN_VALUE:    
-            context.kind = filter_kind
-        if filter_sort_by is not MAINTAIN_VALUE:
-            context.sort_by = filter_sort_by
-        if kwargs:
-            context = apply_filter_func(context, **kwargs)
-        render_beans_panel.refresh(context)
+@app.get("/images/{image_id}")
+async def image(image_id: str = Depends(validate_image, use_cache=True)):    
+    return FileResponse(image_id, media_type="image/png")
 
-    render_header(context)  
-    # kind and sort by filter panel
-    with ui.row(wrap=False, align_items="stretch").classes("w-full"):
-        ui.toggle(
-            options=KIND_LABELS,
-            value=context.kind,
-            on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
-        ui.toggle(
-            options=list(beanops.SORT_BY.keys()), 
-            value=context.sort_by, 
-            on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
+@ui.page("/", title="Espresso")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def home(request: Request):
+    context = create_context("home", request)  
+    await vanilla_pages.render_beans_for_home(context)
 
-    # topic filter panel
-    if get_filter_items_func:
-        render_filter_items(
-            load_items=get_filter_items_func, 
-            on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-        ).classes("w-full")
+@ui.page("/baristas/{barista_id}", title="Espresso")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def barista(request: Request, barista_id: Channel = Depends(validate_barista, use_cache=True)): 
+    context = create_context(barista_id, request)
+    if not context.has_read_permission:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await vanilla_pages.render_beans_for_barista(context)
 
-    render_beans_panel(context)
-    render_related_baristas(context)
-    render_footer()
+@ui.page("/sources", title="Espresso News, Posts and Blogs")
+@limiter.limit(LIMIT_10_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def source_barista(
+    request: Request, 
+    feed: str = Query(..., min_length=2),
+    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
+):
+    context = create_context("cutom_barista", request)
+    context.sources = feed
+    context.tags = tag
+    await vanilla_pages.render_beans_for_source(context)
 
-async def render_search(context: NavigationContext): 
-    initial_tags, context.kind = context.tags, beanops.DEFAULT_KIND
+@ui.page("/search", title="Espresso Search")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def search(request: Request, 
+    query: str = None,
+    acc: float = Query(ge=0, le=1, default=config.filters.bean.default_accuracy),
+    ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=config.filters.bean.default_window),
+    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
+    source: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
+):
+    context = create_context("search", request)
+    context.query = query
+    context.accuracy = acc
+    context.last_ndays = ndays
+    context.tags = tag
+    context.sources = source
+    await vanilla_pages.render_search(context)
 
-    def retrieve_beans(start, limit):
-        context.log("retrieve", start=start, limit=limit)
-        return beanops.search_beans(context.query, context.accuracy, context.tags, context.kind, context.sources, context.last_ndays, None, start, limit)
+@ui.page("/user/register", title="Espresso User Registration")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+async def register_user(request: Request, userinfo: dict = Depends(validate_registration)):
+    context = NavigationContext("registration", userinfo)
+    await vanilla_pages.render_registration(context)
     
-    @ui.refreshable
-    def render_search_result():
-        return render_beans_as_paginated_list(
-            context, 
-            retrieve_beans, 
-            lambda: beanops.count_search_beans(context.query, context.accuracy, context.tags, context.kind, context.sources, context.last_ndays, beanops.MAX_LIMIT)).classes("w-full")               
+GOOGLE_ANALYTICS_SCRIPT = '''
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NBSTNYWPG1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-NBSTNYWPG1');
+</script>
+'''
 
-    def apply_filter(
-        filter_kind: str = MAINTAIN_VALUE, 
-        filter_tags: str|list[str] = MAINTAIN_VALUE
-    ):
-        if filter_kind is not MAINTAIN_VALUE:    
-            context.kind = filter_kind
-        if filter_tags is not MAINTAIN_VALUE:
-            context.tags = [initial_tags, filter_tags] if (initial_tags and filter_tags) else (initial_tags or filter_tags)
-        return render_search_result.refresh()
-    
-    render_header(context)
-    render_search_controls(context).classes("w-full")
-    
-    if context.query or context.tags:
-        ui.toggle(
-            options=KIND_LABELS, 
-            value=context.kind, 
-            on_change=lambda e: apply_filter(filter_kind=e.sender.value)
-        ).props(TOGGLE_OPTIONS_PROPS+" clearable")  
-        # render_filter_items(
-        #     load_items=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
-        #     on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
-        # ).classes("w-full")
-        render_search_result()
-    
-    render_footer()
-
-async def render_registration(context: NavigationContext):
-    userinfo = context.user
-
-    async def success():
-        beanops.db.create_user(userinfo, DEFAULT_TOPIC_BARISTAS)
-        context.log("registered")
-        ui.navigate.to("/")
-
-    async def cancel():
-        context.log("cancelled")
-        ui.navigate.to("/")
-        
-    context.log("registering")
-
-    render_header(context)    
-    with ui.card(align_items="stretch").classes("self-center"):
-        ui.label("You look new!").classes("text-h4")
-        ui.label("Let's get you signed up.").classes("text-caption")
-        
-        with ui.row(wrap=False).classes("justify-between"):
-            with ui.column(align_items="start"):
-                ui.label("User Agreement").classes("text-h6")
-                ui.link("What is Espresso", "https://github.com/soumitsalman/espresso/blob/main/README.md", new_tab=True)
-                ui.link("Terms of Use", "https://github.com/soumitsalman/espresso/blob/main/docs/terms-of-use.md", new_tab=True)
-                ui.link("Privacy Policy", "https://github.com/soumitsalman/espresso/blob/main/docs/privacy-policy.md", new_tab=True)                
-            ui.separator().props("vertical")
-            with ui.column(align_items="end"):   
-                if "picture" in userinfo:
-                    ui.image(userinfo["picture"]).classes("w-24")  
-                ui.label(userinfo["name"]).classes("text-bold")
-                ui.label(userinfo["email"]).classes("text-caption")
-        
-        agreement = ui.checkbox(text="I have read and understood every single word in each of the links above. I agree to the terms and conditions.") \
-            .tooltip("We are legally obligated to ask you this question. Please read the documents to reduce our chances of going to jail.")
-        with ui.row():
-            ui.button("Agreed", color="primary", icon="thumb_up", on_click=success).bind_enabled_from(agreement, "value").props("unelevated")
-            ui.button('Nope!', color="negative", icon="cancel", on_click=cancel).props("outline")
-    render_footer()
-
-async def render_doc(user: User, doc_id: str):
-    render_header(user)
-    with open(f"./docs/{doc_id}", 'r') as file:
-        ui.markdown(file.read()).classes("w-full md:w-2/3 lg:w-1/2  self-center")
-    render_footer()
+def run():
+    app.add_middleware(SessionMiddleware, secret_key=config.app.storage_secret) # needed for oauth
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    ui.add_head_html(GOOGLE_ANALYTICS_SCRIPT, shared=True)
+    ui.run(
+        title=config.app.name, 
+        storage_secret=config.app.storage_secret,
+        dark=True, 
+        favicon="./images/favicon.ico", 
+        port=8080, 
+        show=False,
+        uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
+        proxy_headers=True
+    )

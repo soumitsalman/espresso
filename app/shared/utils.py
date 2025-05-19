@@ -3,7 +3,7 @@ import humanize
 from urllib.parse import urlparse
 import logging
 from icecream import ic
-from app.pybeansack.models import Barista, User
+from app.pybeansack.models import Channel, User
 from app.shared.env import *
 
 # cache settings
@@ -14,13 +14,13 @@ ONE_DAY = 86400
 ONE_WEEK = 604800
 CACHE_SIZE = 100
 
-logger = logging.getLogger(APP_NAME)
+logger = logging.getLogger(config.app.name)
 
 # this is the user navigation and access context that also arbitrates RBAC
 # TODO: move this to a different file
 class NavigationContext:
     user: User|str|None = None
-    page: Barista|str = None
+    page: Channel|str = None
     
     kind: str|None = None
     sort_by: str|None = None
@@ -31,7 +31,7 @@ class NavigationContext:
     accuracy: float|None = None
     last_ndays: int|None = None
 
-    def __init__(self, page: Barista|str, user: User|str):
+    def __init__(self, page: Channel|str, user: User|str):
         self.page = page
         self.user = user
         
@@ -43,7 +43,7 @@ class NavigationContext:
 
     @property
     def page_id(self):
-        if isinstance(self.page, Barista): return self.page.id
+        if isinstance(self.page, Channel): return self.page.id
         if isinstance(self.page, str): return self.page
 
     @property
@@ -52,7 +52,7 @@ class NavigationContext:
     
     @property
     def is_barista(self):
-        return isinstance(self.page, Barista)
+        return isinstance(self.page, Channel)
 
     @property
     def has_read_permission(self):

@@ -1,0 +1,66 @@
+[defaults]
+accuracy = 0.675
+window = 7
+limit = 10
+kind = ""
+sort_by = "Trending"
+
+topics = [
+    "artificial-intelligence",
+    "automotive",
+    "aviation---aerospace",
+    "business---finance",
+    "career---professional-skills",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "food---health",
+    "gadgets---iot",
+    "government---politics",
+    "hpc---datacenters",
+    "leadership---people-management",
+    "logistics---transportation",
+    "robotics---manufacturing",
+    "science---mathematics",
+    "software-engineering",
+    "solar-energy",
+    "startups---vcs",
+    "video-games---virtual-reality"
+]
+
+outlets = [
+    "business-insider",
+    "bloomberg",
+    "amazon",
+    "apple",
+    "google",
+    "hackernews",
+    "huggingface",
+    "microsoft",
+    "finsmes",
+    "venturebeat",
+    "reddit"
+]
+
+tags = [
+    "bitcoin",
+    "elon-musk",
+    "donald-trump",
+    "doge"
+]
+
+topic_filters = [
+    "artificial-intelligence",
+    "business---finance",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "gadgets---iot",
+    "government---politics",
+    "science---mathematics",
+    "software-engineering",
+    "startups---vcs"
+]
+
+[embedder]
+path = "/home/soumitsr/codes/espresso-new/.models/gist-small-embeddingv-0-q8.gguf"

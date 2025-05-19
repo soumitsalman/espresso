@@ -46,7 +46,7 @@ def session_settings(userid):
         else:
             sessions[userid] = {
                 "search": {
-                    "topics": DEFAULT_CATEGORIES,
+                    "topics": categories,
                     "last_ndays": MIN_WINDOW
                 }
             }        

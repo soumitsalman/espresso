@@ -9,11 +9,8 @@ embedder: SentenceTransformer = None
 embedder_lock = threading.Lock()
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
-def embed(query: str) -> list[float]:
+def embed_query(query: str) -> list[float]:
     """Generate embeddings using the ONNX model."""
-    global embedder
     with embedder_lock:
-        if not embedder:
-            embedder = SentenceTransformer(env.EMBEDDER_PATH, cache_folder=".models", tokenizer_kwargs={"truncation": True})
         vec = embedder.encode("query: "+query)
     return vec

@@ -1,0 +1,76 @@
+[filters]
+[filters.bean]
+default_accuracy = 0.68
+default_window = 7
+default_limit = 10
+default_kind = "news"
+default_sort_by = "Trending"
+max_tags = 5
+max_related = 5
+body = "header-only"
+
+[filters.page]
+categories = [
+    "artificial-intelligence",
+    "business---finance",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "gadgets---iot",
+    "government---politics",
+    "science---mathematics",
+    "software-engineering",
+    "startups---vcs"
+]
+max_tags = 7
+max_beans = 5
+max_pages = 10
+
+[rendering]
+[rendering.bean]
+body = "expandable"
+
+[navigation]
+default_channels = [
+    "artificial-intelligence",
+    "automotive",
+    "aviation---aerospace",
+    "business---finance",
+    "career---professional-skills",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "food---health",
+    "gadgets---iot",
+    "government---politics",
+    "hpc---datacenters",
+    "leadership---people-management",
+    "logistics---transportation",
+    "robotics---manufacturing",
+    "science---mathematics",
+    "software-engineering",
+    "solar-energy",
+    "startups---vcs",
+    "video-games---virtual-reality"]
+
+outlets = [
+    "business-insider",
+    "bloomberg",
+    "amazon",
+    "apple",
+    "google",
+    "hackernews",
+    "huggingface",
+    "microsoft",
+    "finsmes",
+    "venturebeat",
+    "reddit"
+]
+
+tags = [
+    "bitcoin",
+    "elon-musk",
+    "donald-trump",
+    "doge"
+]
+

@@ -77,7 +77,7 @@ def get_beans_per_group(tags: str|list[str], kinds: str|list[str], sources: str|
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_barista_beans(
-    barista: Barista, 
+    barista: Channel, 
     filter_tags: str|list[str], 
     filter_kinds: str|list[str], 
     filter_topic: str, # only applicable if barista does not query_embedding
@@ -116,7 +116,7 @@ def get_beans_per_cluster(tags, kinds, sources, last_ndays, sort_by, start, limi
     projection.update(BEAN_HEADER_FIELDS)
     return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY[sort_by], skip=start, limit=limit, projection=projection)
 
-def get_barista_tags(barista: Barista, start: int, limit: int):
+def get_barista_tags(barista: Channel, start: int, limit: int):
     # NOTE: no need for querying the urls separately since query tags are already there
     filter=create_filter(
         tags = barista.query_tags, 
@@ -152,7 +152,7 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
         return db.vector_search_beans(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit, projection=BEAN_HEADER_FIELDS)
     
     filter=create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit, projection=BEAN_HEADER_FIELDS)    
+    if query: return db.vector_search_beans(embedding=embed_query(query), min_score=accuracy, filter=filter, skip=start, limit=limit, projection=BEAN_HEADER_FIELDS)    
     if tags or sources: return db.query_beans_per_cluster(filter=filter, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, projection=BEAN_HEADER_FIELDS)
     return []
 
@@ -171,7 +171,7 @@ def search_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]]
         return db.sample_vector_search_tags(embedding=bean.embedding, min_score=accuracy, filter=filter, skip=start, limit=limit)
 
     filter=create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.sample_vector_search_tags(embedding=embed(query), min_score=accuracy, filter=filter, skip=start, limit=limit)  
+    if query: return db.sample_vector_search_tags(embedding=embed_query(query), min_score=accuracy, filter=filter, skip=start, limit=limit)  
     return db.sample_query_tags(filter=filter, exclude_from_result=tags, skip=start, limit=limit)
     
 def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int) -> int:
@@ -189,7 +189,7 @@ def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[lis
         return db.count_vector_search_beans(embedding=bean.embedding, min_score=accuracy, filter=filter, limit=limit)
 
     filter=create_filter(tags, kinds, sources, None, last_ndays, None)
-    if query: return db.count_vector_search_beans(embedding=embed(query), min_score=accuracy, filter=filter, limit=limit)  
+    if query: return db.count_vector_search_beans(embedding=embed_query(query), min_score=accuracy, filter=filter, limit=limit)  
     if tags or sources: return db.count_beans_per_cluster(filter=filter, limit=limit)
     return 0
     
@@ -201,18 +201,18 @@ BARISTA_MINIMAL_FIELDS = {K_ID: 1, K_TITLE: 1}
 BARISTA_DEFAULT_FIELDS = {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1, "public": 1, "owner": 1}
 BARISTA_EMBEDDING_FIELDS = {K_ID: 1, K_EMBEDDING: 1}
 
-def get_barista(id: str, projection: dict = BARISTA_DEFAULT_FIELDS) -> Barista|None:
+def get_barista(id: str, projection: dict = BARISTA_DEFAULT_FIELDS) -> Channel|None:
     barista = db.baristas.find_one(filter={K_ID: id}, projection=projection)
-    if barista: return Barista(**barista)
+    if barista: return Channel(**barista)
 
-def get_baristas(ids: list[str], projection: dict = BARISTA_DEFAULT_FIELDS) -> list[Barista]:
+def get_baristas(ids: list[str], projection: dict = BARISTA_DEFAULT_FIELDS) -> list[Channel]:
     if not ids: return
     result = db.baristas.find(
         filter={K_ID: {"$in": ids}}, 
         sort={K_TITLE: 1}, 
         projection=BARISTA_DEFAULT_FIELDS
     )
-    return [Barista(**barista) for barista in result]
+    return [Channel(**barista) for barista in result]
 
 # @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_following_baristas(user: User):
@@ -244,7 +244,7 @@ def get_following_baristas(user: User):
             "$sort": {K_TITLE: 1}
         }
     ]
-    return [Barista(**barista) for barista in db.users.aggregate(pipeline)]
+    return [Channel(**barista) for barista in db.users.aggregate(pipeline)]
 
 def get_barista_recommendations(context: NavigationContext):
     return db.sample_baristas(5, BARISTA_DEFAULT_FIELDS)

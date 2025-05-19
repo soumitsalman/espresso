@@ -16,17 +16,7 @@ from icecream import ic
 
 CSS_FILE = "./app/web/styles.css"
 
-GOOGLE_ANALYTICS_SCRIPT = '''
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-NBSTNYWPG1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-NBSTNYWPG1');
-</script>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-'''
+MATERIAL_ICONS = """<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">"""
 
 PRIMARY_COLOR = "#4e392a"
 SECONDARY_COLOR = "#b79579"
@@ -35,6 +25,7 @@ STRETCH_FIT = "w-full h-full m-0 p-0"
 ACTION_BUTTON_PROPS = "flat size=sm"
 TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=primary"
 SEARCH_BAR_PROPS = "item-aligned standout clearable clear-icon=close maxlength=1000 rounded"
+BEANS_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 bg-transparent"
 
 GOOGLE_ICON = "img:https://www.google.com/favicon.ico"
 REDDIT_ICON = "img:https://www.reddit.com/favicon.ico"
@@ -98,12 +89,12 @@ navigate_to_search = lambda **kwargs: ui.navigate.to(create_navigation_target("/
 render_banner = lambda text: ui.label( inflect_engine.join(text) if isinstance(text, list) else text).classes("text-h6")
 render_thick_separator = lambda: ui.separator().style("height: 5px;").classes("w-full")
 render_share_button = lambda context, bean, target, icon: ui.button(on_click=create_share_func(context, bean, target), icon=icon, color="transparent").props("flat")
-render_bean = lambda context, bean, expanded, on_read: render_expandable_bean(context, bean, expanded, on_read)
 
 tooltip_msg = lambda ctx, msg: msg if ctx.is_registered else f"Login to {msg}"
 
 def render_header(context: NavigationContext):
-    ui.add_css(CSS_FILE)
+    ui.add_css(CSS_FILE, shared=True)
+    ui.add_head_html(MATERIAL_ICONS, shared=True)
     ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)    
 
     barista_panel = render_navigation_panel(context)
@@ -114,7 +105,7 @@ def render_header(context: NavigationContext):
     with ui.header(wrap=False).props("reveal").classes("justify-between items-stretch rounded-borders p-1 q-ma-xs") as header:     
         with ui.button(on_click=lambda: navigate_to("/")).props("unelevated").classes("q-px-xs"):
             with ui.avatar(square=True, size="md").classes("rounded-borders"):
-                ui.image("images/cafecito.jpeg")
+                ui.image("images/espresso.png")
             ui.label("Espresso").classes("q-ml-sm")
             
         ui.button(icon="local_cafe_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
@@ -124,6 +115,17 @@ def render_header(context: NavigationContext):
         if context.is_registered: render_user(context.user)
         else: render_login()
     return header
+
+def render_footer():
+    with ui.footer(fixed=False).classes("text-caption justify-center bg-transparent p-1 q-mx-xl") as footer:
+        with ui.element():
+            with ui.row(align_items="center").classes("gap-2 justify-between self-center text-center"):
+                ui.link("Terms of Use", "https://github.com/soumitsalman/espresso/blob/main/docs/terms-of-use.md")
+                ui.link("Privacy Policy", "https://github.com/soumitsalman/espresso/blob/main/docs/privacy-policy.md")
+                ui.link("About", "https://github.com/soumitsalman/espresso/blob/main/README.md")
+                ui.link("Project Cafecito", "https://cafecito.tech")
+            ui.label("Copyright © 2024 Project Cafecito. All rights reserved.")
+    return footer
 
 def render_login():
     with ui.button(icon="login").props("unelevated") as view:
@@ -208,13 +210,13 @@ def render_search_controls(context: NavigationContext):
                     with ui.item_section().props("avatar"):
                         ui.icon("explore", color="secondary")
                     with ui.item_section() as accuracy_container:
-                        accuracy = ui.slider(min=0.1, max=1.0, step=0.05, value=context.accuracy or DEFAULT_ACCURACY)
+                        accuracy = ui.slider(min=0.1, max=1.0, step=0.05, value=context.accuracy or config.filters.bean.default_accuracy)
                         accuracy_container.bind_text_from(accuracy, "value", lambda v: f"Accuracy: {v}")
                 with ui.item():
                     with ui.item_section().props("avatar"):
                         ui.icon("date_range", color="secondary")
                     with ui.item_section() as last_ndays_container:
-                        last_ndays = ui.slider(min=MIN_WINDOW, max=MAX_WINDOW, step=1, value=context.last_ndays or DEFAULT_WINDOW).props("reverse")
+                        last_ndays = ui.slider(min=MIN_WINDOW, max=MAX_WINDOW, step=1, value=context.last_ndays or config.filters.bean.default_window).props("reverse")
                         last_ndays_container.bind_text_from(last_ndays, "value", 
                             lambda v: f"Since {(datetime.now() - timedelta(days=v)).strftime('%b %d')}")
             sources = ui.select(options=beanops.get_all_sources(), value=context.sources, label="Feeds", with_input=True, multiple=True, clearable=True) \
@@ -246,7 +248,7 @@ def render_barista_search_bar(search_func: Callable):
 
 render_barista_items = lambda baristas: [ui.item(item.title).props(f"clickable standout href={create_barista_target(item.id)}").classes("bg-dark rounded-borders") for item in baristas]
 
-def render_baristas(baristas: list[Barista]):
+def render_baristas(baristas: list[Channel]):
     with ui.list() as holder:
         if baristas: render_barista_items(baristas)
     return holder 
@@ -278,22 +280,22 @@ def render_filter_items(load_items: Callable, on_selection_changed: Callable):
     background_tasks.create_lazy(render(), name=f"filter-items-{now()}")
     return holder
 
-def render_related_baristas(context: NavigationContext):
-    related_baristas = beanops.get_baristas(context.page.related) \
+def render_similar_channels(context: NavigationContext):
+    related_baristas = beanops.get_channels(context.page.related) \
         if (context.is_barista and context.page.related) \
-            else beanops.get_barista_recommendations(context)
+            else beanops.get_channel_suggestions(context)
     with ui.column(align_items="stretch").classes("w-full"):
         render_thick_separator()
         with ui.row().classes("w-full gap-1"):
             render_barista_items(related_baristas)
 
-def render_beans(context: NavigationContext, load_beans: Callable, container: ui.element = None):
+def render_beans(context: NavigationContext, load_beans: Callable, container: ui.element = None, item_classes: str = STRETCH_FIT):
     async def render():
         beans = await run.io_bound(load_beans)
         container.clear()
         with container:
             if not beans: ui.label(NOTHING_FOUND).classes("w-full text-center") 
-            else: [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
+            [render_bean_with_related(context, bean).classes(item_classes) for bean in beans] 
 
     container = container or ui.column(align_items="stretch")
     with container:
@@ -301,32 +303,33 @@ def render_beans(context: NavigationContext, load_beans: Callable, container: ui
     background_tasks.create_lazy(render(), name=f"beans-{now()}")
     return container
 
-def render_beans_as_extendable_list(context: NavigationContext, load_beans: Callable, container: ui.element = None):
+def render_beans_as_extendable_list(context: NavigationContext, load_beans: Callable):
     current_start = 0   
-
+    
     def current_page():
         nonlocal current_start
-        beans = load_beans(current_start, MAX_ITEMS_PER_PAGE+1) 
-        current_start += MAX_ITEMS_PER_PAGE # moving the cursor
-        if len(beans) <= MAX_ITEMS_PER_PAGE:
+        beans = load_beans(current_start, config.filters.page.max_beans+1) 
+        current_start += config.filters.page.max_beans # moving the cursor
+        if len(beans) <= config.filters.page.max_beans:
             more_btn.delete()
-        return beans[:MAX_ITEMS_PER_PAGE]
+        return beans[:config.filters.page.max_beans]
 
     async def next_page():
         with disable_button(more_btn):
             beans = await run.io_bound(current_page)   
             with beans_panel:
-                [render_bean_with_related(context, bean).classes("w-full w-full m-0 p-0") for bean in beans[:MAX_ITEMS_PER_PAGE]]
+                [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans[:config.filters.page.max_beans]]
 
     with ui.column() as view:
-        beans_panel = render_beans(context, current_page, container).classes("w-full")
+        with ui.grid().classes(BEANS_GRID_CLASSES) as beans_panel:
+            render_beans(context, current_page, beans_panel, STRETCH_FIT)
         more_btn = ui.button("More Stories", on_click=next_page).props("rounded no-caps icon-right=chevron_right")
-    return view  
+    return view
 
 def render_beans_as_paginated_list(context: NavigationContext, load_beans: Callable, count_items: Callable):    
     @ui.refreshable
     def render(page):
-        return render_beans(context, lambda: load_beans((page-1)*MAX_ITEMS_PER_PAGE, MAX_ITEMS_PER_PAGE)).classes("w-full")     
+        return render_beans(context, lambda: load_beans((page-1)*config.filters.page.max_beans, config.filters.page.max_beans)).classes("w-full")     
 
     with ui.column(align_items="stretch") as panel:
         render(1)
@@ -338,12 +341,13 @@ def render_bean_with_related(context: NavigationContext, bean: Bean):
 
     def render_bean_as_slide(item: Bean, expanded: bool, on_read: Callable):
         with ui.carousel_slide(item.url).classes("w-full m-0 p-0 no-wrap"):
-            render_bean(context, item, expanded, on_read).classes("w-full m-0 p-0")
+            render_bean(context, item, expanded, on_read)
 
-    def on_read():
+    async def on_read():
         nonlocal related_beans
         if related_beans: return
-        related_beans = beanops.get_related(url=bean.url, tags=None, kinds=None, sources=None, last_ndays=None, limit=MAX_RELATED_ITEMS)
+        related_beans = await run.io_bound(beanops.get_related, url=bean.url, tags=None, kinds=None, sources=None, last_ndays=None)
+        if not related_beans: return
         with carousel:
             for item in related_beans:
                 render_bean_as_slide(item, True, None) # NOTE: keep them expanded by default and no need for callback
@@ -360,9 +364,9 @@ def render_bean_with_related(context: NavigationContext, bean: Bean):
     return view
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
-def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: bool = False, on_read: Callable = None):
+def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: bool = False, on_expanded = None):
     body_loaded = False
-    async def on_expanded():
+    async def load_body():
         nonlocal body_loaded
         if not expansion.value: return
         context.log("read", url=bean.url)
@@ -372,9 +376,11 @@ def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: boo
             render_bean_body(context, beanops.load_bean_body(bean))
             body_loaded = True
 
-        if on_read: await run.io_bound(on_read)
-
-    with ui.expansion(value=expanded, on_value_change=on_expanded).props("dense hide-expand-icon").classes("bg-dark rounded-borders") as expansion:
+    with ui.expansion(value=expanded, on_value_change=load_body) \
+        .on_value_change(load_body) \
+        .on_value_change(on_expanded) \
+        .props("dense hide-expand-icon") \
+        .classes("bg-dark rounded-borders " + STRETCH_FIT) as expansion:
         header = expansion.add_slot("header")
         with header:    
             render_bean_header(context, bean).classes(add="p-0")
@@ -383,10 +389,22 @@ def render_expandable_bean(context: NavigationContext, bean: Bean, expanded: boo
     return expansion
 
 def render_whole_bean(context: NavigationContext, bean: Bean):
-    with ui.element() as view:
+    with ui.column(align_items="stretch") as view:
         render_bean_header(context, bean).classes(add="q-mb-sm")
         render_bean_body(context, bean)
     return view 
+
+def render_bean(context, bean, expanded: bool = False, on_expanded = None):
+    # if not hasattr(config.filters.bean, 'body') or config.filters.bean.body == "skip": return render_header_only_bean(context, bean)
+    if config.rendering.bean.body == "whole": return render_whole_bean(context, bean)
+    return render_expandable_bean(context, bean, expanded, on_expanded)
+
+# def render_header_only_bean(context: NavigationContext, bean: Bean):
+#     with ui.column(align_items="stretch") as view:
+#         render_bean_header(context, bean).classes(add="q-mb-sm")
+#         if bean.tags: render_bean_tags(context, bean)
+#         render_bean_actions(context, bean).classes(STRETCH_FIT)
+#     return view 
 
 def render_bean_header(context: NavigationContext, bean: Bean):
     with ui.row(wrap=False, align_items="stretch").classes("w-full bean-header") as view:            
@@ -421,7 +439,7 @@ def render_bean_body(context: NavigationContext, bean: Bean):
 def render_bean_tags(context: NavigationContext, bean: Bean):
     make_tag = lambda tag: ui.link(tag, target=create_navigation_target("/search", tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
-        [make_tag(tag) for tag in random.sample(bean.tags, min(MAX_TAGS_PER_BEAN, len(bean.tags)))]
+        [make_tag(tag) for tag in random.sample(bean.tags, min(config.filters.bean.max_tags, len(bean.tags)))]
     return view
 
 def render_bean_source(context: NavigationContext, bean: Bean):
@@ -514,9 +532,9 @@ def render_report_a_bug():
 def render_pagination(count_items: Callable, on_change: Callable):
     async def render():
         items_count = await run.io_bound(count_items)
-        page_count = -(-items_count//MAX_ITEMS_PER_PAGE)
+        page_count = -(-items_count//config.filters.page.max_beans)
         view.clear()
-        if items_count > MAX_ITEMS_PER_PAGE:
+        if items_count > config.filters.page.max_beans:
             with view:
                 ui.pagination(min=1, max=page_count, direction_links=True, on_change=lambda e: on_change(e.sender.value)).props("max-pages=10 ellipses")            
 
@@ -549,11 +567,6 @@ def render_skeleton_baristas(count = 3):
                 ui.skeleton("text", width="100%")    
         skeletons.append(item)
     return skeletons
-
-def render_footer():
-    render_thick_separator()
-    text = "[[Terms of Use](https://github.com/soumitsalman/espresso/blob/main/docs/terms-of-use.md)]   [[Privacy Policy](https://github.com/soumitsalman/espresso/blob/main/docs/privacy-policy.md)]   [[Espresso](https://github.com/soumitsalman/espresso/blob/main/README.md)]   [[Project Cafecito](https://github.com/soumitsalman/espresso/blob/main/docs/project-cafecito.md)]\n\nCopyright © 2024 Project Cafecito. All rights reserved."
-    return ui.markdown(text).classes("w-full text-caption text-center")
 
 def render_error_text(msg: str):
     return ui.label(msg).classes("self-center text-center")
@@ -633,19 +646,19 @@ def _create_navigation_baristas(context: NavigationContext):
         },
         {
             "icon": "label_outlined",
-            "label": "Topics",
-            "items": beanops.get_baristas(DEFAULT_TOPIC_BARISTAS)
+            "label": "Channels",
+            "items": beanops.get_channels(config.navigation.default_channels)
         },
-        {
-            "icon": "rss_feed",
-            "label": "Outlets",
-            "items": beanops.get_baristas(DEFAULT_OUTLET_BARISTAS)
-        },
-        {
-            "icon": "tag",
-            "label": "Tags",
-            "items": beanops.get_baristas(DEFAULT_TAG_BARISTAS)
-        },
+        # {
+        #     "icon": "rss_feed",
+        #     "label": "Outlets",
+        #     "items": beanops.get_baristas(DEFAULT_OUTLET_BARISTAS)
+        # },
+        # {
+        #     "icon": "tag",
+        #     "label": "Tags",
+        #     "items": beanops.get_baristas(DEFAULT_TAG_BARISTAS)
+        # },
         # {
         #     "icon": "scatter_plot",
         #     "label": "Explore",

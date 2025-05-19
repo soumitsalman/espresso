@@ -7,6 +7,7 @@
 .models
 .slack
 *.log
+env.toml
 *__pycache__
 
 
