@@ -1,0 +1,11 @@
+openai
+fastapi[standard]
+slack-bolt
+pydantic
+retry
+humanize
+memoization
+azure-monitor-opentelemetry
+tomli
+icecream
+python-dotenv

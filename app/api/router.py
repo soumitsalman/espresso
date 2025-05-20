@@ -74,7 +74,7 @@ OFFSET = Query(ge=0, default=0)
 LIMIT = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=config.filters.bean.default_limit)
 
 embedder: SentenceTransformer = None
-api_router = FastAPI(title=config.app.name, root_path="/api", version="0.0.1", description="API for Espresso (Alpha)")
+api_router = FastAPI(title=config.app.name, version="0.0.1", description=config.app.description)
 
 def embed_query(query: str) -> list[float]:
     """Generate embeddings using the ONNX model."""
@@ -111,7 +111,7 @@ async def get_beans(
 ) -> list[Bean]:
     filter = create_filter(kind, categories, entities, regions, sources, published_after, with_content)
     project = create_projection(with_content) 
-    return db.query_beans(filter=ic(filter), group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
+    return db.query_beans(filter=filter, group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
 
 @api_router.get("/search", response_model=list[Bean]|None)
 async def search_beans(
@@ -156,6 +156,6 @@ async def get_related(
 
 def run():
     global embedder
-    embedder = SentenceTransformer(config.embedder.path, cache_folder=".models", tokenizer_kwargs={"truncation": True})
-    uvicorn.run(api_router, host="0.0.0.0", port=8080)
+    embedder = SentenceTransformer(os.getenv('EMBEDDER_PATH'), cache_folder=os.getenv('MODELS_CACHE'), tokenizer_kwargs={"truncation": True})
+    uvicorn.run(api_router, host="0.0.0.0", port=config.host.port, root_path="/api")
 

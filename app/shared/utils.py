@@ -4,7 +4,7 @@ import humanize
 from urllib.parse import urlparse
 import logging
 from icecream import ic
-from app.pybeansack.models import Channel, User
+from app.pybeansack.models import Page, User
 from app.shared.env import *
 
 # cache settings
@@ -21,7 +21,7 @@ logger = logging.getLogger(config.app.name)
 # TODO: move this to a different file
 class NavigationContext:
     user: User|str|None = None
-    page: Channel|str = None
+    page: Page|str = None
     
     kind: str|None = None
     sort_by: str|None = None
@@ -32,7 +32,7 @@ class NavigationContext:
     accuracy: float|None = None
     last_ndays: int|None = None
 
-    def __init__(self, page: Channel|str, user: User|str):
+    def __init__(self, page: Page|str, user: User|str):
         self.page = page
         self.user = user
         
@@ -44,7 +44,7 @@ class NavigationContext:
 
     @property
     def page_id(self):
-        if isinstance(self.page, Channel): return self.page.id
+        if isinstance(self.page, Page): return self.page.id
         if isinstance(self.page, str): return self.page
 
     @property
@@ -52,15 +52,15 @@ class NavigationContext:
         return isinstance(self.user, User)
     
     @property
-    def is_barista(self):
-        return isinstance(self.page, Channel)
+    def is_stored_page(self):
+        return isinstance(self.page, Page)
 
     @property
     def has_read_permission(self):
         # anyone has access to public baristas
         # if the barista is marked as private, then only the owner can access it
         # which means if this is not a registered user, then user does not have access to the barista
-        if not self.is_barista: return True
+        if not self.is_stored_page: return True
         if self.page.public: return True
         return (self.user.email == self.page.owner) if (self.is_registered) else False
 
@@ -69,7 +69,7 @@ class NavigationContext:
         # only barista pages can be published
         # only registered user that owns the barista can publish
         if not self.is_registered: return False
-        if not self.is_barista: return False
+        if not self.is_stored_page: return False
         return self.user.email == self.page.owner
 
     @property
@@ -77,14 +77,14 @@ class NavigationContext:
         # anyone can follow public baristas
         # if the barista is marked as private, then only the owner can follow it
         if not self.is_registered: return False
-        if not self.is_barista: return False
+        if not self.is_stored_page: return False
         if self.page.public: return True
         return self.user.email == self.page.owner
     
     @property
     def is_following(self):
         if not self.is_registered: return False
-        if not self.is_barista: return False
+        if not self.is_stored_page: return False
         return self.page.id in self.user.following
 
     def log(self, action, **kwargs):    

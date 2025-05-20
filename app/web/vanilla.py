@@ -302,10 +302,10 @@ def run():
     ui.add_head_html(GOOGLE_ANALYTICS_SCRIPT, shared=True)
     ui.run(
         title=config.app.name, 
-        storage_secret=config.app.storage_secret,
+        storage_secret=config.host.storage_secret,
         dark=True, 
         favicon="./images/favicon.ico", 
-        port=8080, 
+        port=config.host.port, 
         show=False,
         uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
         proxy_headers=True

@@ -109,6 +109,7 @@ def render_header(context: NavigationContext):
             ui.label("Espresso").classes("q-ml-sm")
             
         ui.button(icon="local_cafe_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
+        ui.button(icon="rss_feed_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
         ui.button(icon="search_outlined", on_click=search_dialog.open).props("unelevated").classes("lt-sm")
         render_search_bar(context).props("dense").classes("w-1/2 p-0 gt-xs")
 
@@ -282,7 +283,7 @@ def render_filter_items(load_items: Callable, on_selection_changed: Callable):
 
 def render_similar_channels(context: NavigationContext):
     related_baristas = beanops.get_channels(context.page.related) \
-        if (context.is_barista and context.page.related) \
+        if (context.is_stored_page and context.page.related) \
             else beanops.get_channel_suggestions(context)
     with ui.column(align_items="stretch").classes("w-full"):
         render_thick_separator()

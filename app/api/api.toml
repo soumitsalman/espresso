@@ -4,4 +4,5 @@ default_accuracy = 0.7
 default_limit = 20
 
 [app]
-name = "API"
+name = "Espresso API"
+description = "API for Espresso (Alpha)"
