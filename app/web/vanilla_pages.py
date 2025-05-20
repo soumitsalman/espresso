@@ -60,7 +60,7 @@ async def render_beans_for_barista(context: NavigationContext):
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_channel(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
+        return beanops.get_beans_for_page(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
         
     def get_filters_items():
         if use_topic_filter: return {b.id: b.title for b in beanops.get_channels(config.filters.page.categories, beanops.BARISTA_MINIMAL_FIELDS)}

@@ -41,11 +41,11 @@ def load_bean_body(bean: Bean):
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_beans_for_home(tags: str|list[str], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """get one bean per cluster and per source"""
-    filter = _create_filter(tags, kinds, sources, None, last_ndays, None)
+    filter = create_filter(tags, kinds, sources, None, last_ndays, None)
     return db.query_beans(filter, K_SOURCE, SORT_BY[sort_by], start, limit, BEAN_HEADER_FIELDS)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
-def get_beans_for_channel(
+def get_beans_for_page(
     channel: Channel, 
     filter_tags: str|list[str], 
     filter_kinds: str|list[str], 
@@ -53,9 +53,9 @@ def get_beans_for_channel(
     sort_by, start: int, limit: int
 ):
     sort_by = SORT_BY[sort_by]
-    filter=_create_filter(
-        tags = [filter_tags, channel.query_tags], 
+    filter=create_filter(
         kinds = filter_kinds or channel.query_kinds, 
+        entities = [filter_tags, channel.query_tags], 
         sources = channel.query_sources, 
         urls = channel.query_urls,
         created_in_last_ndays = None, 
@@ -63,15 +63,15 @@ def get_beans_for_channel(
     )
     # if the barista is primarily based on specific urls, then just search for those
     if channel.query_urls: return db.query_beans(filter=filter, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    if channel.query_embedding: return db.vector_search_beans(embedding=channel.query_embedding, similarity_score=channel.query_distance or config.filters.bean.default_accuracy, filter=filter, distinct_field=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    if channel.query_embedding: return db.vector_search_beans(embedding=channel.query_embedding, similarity_score=channel.query_distance or config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
     if channel.query_tags or channel.query_sources: 
-        if filter_category: return db.vector_search_beans(embedding=get_barista(filter_category, BARISTA_EMBEDDING_FIELDS).query_embedding, similarity_score=config.filters.bean.default_accuracy, filter=filter, distinct_field=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-        return db.query_beans(filter=filter, distinct_field=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
+        if filter_category: return db.vector_search_beans(embedding=get_barista(filter_category, BARISTA_EMBEDDING_FIELDS).query_embedding, similarity_score=config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+        return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_barista_tags(barista: Channel, start: int, limit: int):
+def get_filter_tags_for_page(barista: Channel, start: int, limit: int):
     # NOTE: no need for querying the urls separately since query tags are already there
-    filter=_create_filter(
+    filter=create_filter(
         tags = barista.query_tags, 
         kinds = barista.query_kinds, 
         sources = barista.query_sources, 
@@ -86,17 +86,17 @@ def get_barista_tags(barista: Channel, start: int, limit: int):
 def get_beans_for_source(source_id: str, tags: str|list[str]|list[list[str]], kinds: str|list[str], categories: str, last_ndays: int, sort_by, start: int, limit: int):
     """Retrieves news articles, social media posts, blog articles from the feed source"""  
     sort_by = SORT_BY[sort_by]
-    filter=_create_filter(tags, kinds, source_id, None, last_ndays, None)
-    if categories: return db.vector_search_beans(embedding=get_barista(categories, BARISTA_EMBEDDING_FIELDS).query_embedding, similarity_score=config.filters.bean.default_accuracy, filter=filter, distinct_field=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    return db.query_beans(filter=filter, distinct_field=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
+    filter=create_filter(tags, kinds, source_id, None, last_ndays, None)
+    if categories: return db.vector_search_beans(embedding=get_barista(categories, BARISTA_EMBEDDING_FIELDS).query_embedding, similarity_score=config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
-    filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
+    filter=create_filter(tags, kinds, sources, None, last_ndays, None)
     if is_valid_url(query): return db.vector_search_similar_beans(query, accuracy, filter, None, start, limit, BEAN_HEADER_FIELDS)
     if query: return db.vector_search_beans(embedding=embed_query(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
-    if tags or sources: return db.query_beans(filter=filter, distinct_field=K_CLUSTER_ID, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    if tags or sources: return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=SORT_BY.get(sort_by, NEWEST_AND_TRENDING), skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
     # return []
 
 # @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
@@ -120,16 +120,16 @@ def search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]
     
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def count_search_beans(query: str, accuracy: float, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int, limit: int) -> int:
-    filter=_create_filter(tags, kinds, sources, None, last_ndays, None)
-    if is_valid_url(query): return db.count_vector_search_similar_beans(query, accuracy, filter=filter, distinct_field=None, limit=limit)
+    filter=create_filter(tags, kinds, sources, None, last_ndays, None)
+    if is_valid_url(query): return db.count_vector_search_similar_beans(query, accuracy, filter=filter, group_by=None, limit=limit)
     if query: return db.count_vector_search_beans(embedding=embed_query(query), similarity_score=accuracy, filter=filter, limit=limit)  
-    if tags or sources: return db.count_beans(filter=filter, distinct_field=K_CLUSTER_ID, limit=limit)
+    if tags or sources: return db.count_beans(filter=filter, group_by=K_CLUSTER_ID, limit=limit)
     return 0
     
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_related(url: str, tags: str|list[str]|list[list[str]], kinds: str|list[str], sources: str|list[str], last_ndays: int):
-    filter = _create_filter(tags, kinds, sources, None, last_ndays, None)
-    return db.query_related_beans(url=url, filter=filter, limit=config.filters.bean.max_related) 
+    filter = create_filter(tags, kinds, sources, None, last_ndays, None)
+    return db.query_related_beans(url=url, filter=filter, limit=config.filters.bean.max_related, project=BEAN_HEADER_FIELDS) 
 
 BARISTA_MINIMAL_FIELDS = {K_ID: 1, K_TITLE: 1}
 BARISTA_DEFAULT_FIELDS = {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1, "public": 1, "owner": 1}
@@ -194,40 +194,72 @@ def is_bookmarked(context: NavigationContext, url: str):
     if not context.is_registered: return False
     return db.is_bookmarked(context.user, url)
 
-def _create_filter(
-        tags: str|list[str]|list[list[str]], 
-        kinds: str|list[str], 
-        sources: str|list[str],
-        urls: str|list[str],
-        created_in_last_ndays: int,
-        updated_in_last_ndays: int) -> dict:   
-    filter = {}
-    if kinds: filter[K_KIND] = lower_case(kinds)
+# create_projection = lambda with_content: FIELDS_WITH_CONTENT if with_content else FIELDS_WITHOUT_CONTENT
+# convert_kind = lambda val: BLOG if val == "blogs" else NEWS
+# field_value = lambda items: {"$in": items} if isinstance(items, list) else items
+# lower_case = lambda items: {"$in": [item.lower() for item in items]} if isinstance(items, list) else items.lower()
+# case_insensitive = lambda items: {"$in": [re.compile(item, re.IGNORECASE) for item in items]} if isinstance(items, list) else re.compile(items, re.IGNORECASE)
 
-    if tags: # non-empty or non-null value of tags is important
-        
-        if isinstance(tags, str):
-            filter[K_TAGS] = tags            
-        if isinstance(tags, list):
-            if all(isinstance(tag, str) for tag in tags): 
-                filter[K_TAGS] = {"$in": tags}
-            else: 
-                tag_filters = [{K_TAGS: field_value(taglist)} for taglist in tags if taglist]
-                if tag_filters: filter["$and"] = tag_filters
-    if sources:
-        # TODO: make it look into both source field of the beans and the channel field of the chatters
-        filter["$or"] = [
-            {K_SOURCE: case_insensitive(sources)},
-            {"shared_in": case_insensitive(sources)}
-        ]
-    if urls:
-        filter[K_URL] = field_value(urls)
-    if created_in_last_ndays:
-        filter[K_CREATED] = {"$gte": ndays_ago(created_in_last_ndays)}
-    if updated_in_last_ndays: 
-        filter[K_UPDATED] = {"$gte": ndays_ago(updated_in_last_ndays)}  
+def create_filter(
+    kind: str,
+    categories: str|list[str], 
+    entities: str|list[str], 
+    regions: str|list[str],
+    sources: str|list[str],
+    urls: str|list[str],
+    created_in_last_ndays: int,
+    updated_in_last_ndays: int
+) -> dict:   
+    # pre process since they will all go to the tags filter
+    tags = []
+    if categories: tags.append({K_TAGS: lower_case(categories)})
+    if entities: tags.append({K_TAGS: lower_case(entities)})
+    if regions: tags.append({K_TAGS: lower_case(regions)})
+
+    filter = {}
+    if kind: filter[K_KIND] = kind
+    if tags: filter["$and"] = tags
+    if sources: filter["$or"] = [
+        {K_SOURCE: case_insensitive(sources)},
+        {K_SHARED_IN: case_insensitive(sources)}
+    ]
+    if urls: filter[K_URL] = field_value(urls)
+    if created_in_last_ndays: filter[K_CREATED] = {"$gte": ndays_ago(created_in_last_ndays)}
+    if updated_in_last_ndays: filter[K_UPDATED] = {"$gte": ndays_ago(updated_in_last_ndays)}  
+    
     return filter
 
-field_value = lambda items: {"$in": items} if isinstance(items, list) else items
-lower_case = lambda items: {"$in": [item.lower() for item in items]} if isinstance(items, list) else items.lower()
-case_insensitive = lambda items: {"$in": [re.compile(item, re.IGNORECASE) for item in items]} if isinstance(items, list) else re.compile(items, re.IGNORECASE)
+# def _create_filter(
+#         tags: str|list[str]|list[list[str]], 
+#         kinds: str|list[str], 
+#         sources: str|list[str],
+#         urls: str|list[str],
+#         created_in_last_ndays: int,
+#         updated_in_last_ndays: int) -> dict:   
+#     filter = {}
+#     if kinds: filter[K_KIND] = lower_case(kinds)
+
+#     if tags: # non-empty or non-null value of tags is important
+        
+#         if isinstance(tags, str):
+#             filter[K_TAGS] = tags            
+#         if isinstance(tags, list):
+#             if all(isinstance(tag, str) for tag in tags): 
+#                 filter[K_TAGS] = {"$in": tags}
+#             else: 
+#                 tag_filters = [{K_TAGS: field_value(taglist)} for taglist in tags if taglist]
+#                 if tag_filters: filter["$and"] = tag_filters
+#     if sources:
+#         # TODO: make it look into both source field of the beans and the channel field of the chatters
+#         filter["$or"] = [
+#             {K_SOURCE: case_insensitive(sources)},
+#             {"shared_in": case_insensitive(sources)}
+#         ]
+#     if urls:
+#         filter[K_URL] = field_value(urls)
+#     if created_in_last_ndays:
+#         filter[K_CREATED] = {"$gte": ndays_ago(created_in_last_ndays)}
+#     if updated_in_last_ndays: 
+#         filter[K_UPDATED] = {"$gte": ndays_ago(updated_in_last_ndays)}  
+#     return filter
+

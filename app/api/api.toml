@@ -1,0 +1,7 @@
+[filters]
+[filters.bean]
+default_accuracy = 0.7
+default_limit = 20
+
+[app]
+name = "API"

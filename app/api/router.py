@@ -1,271 +1,161 @@
 import logging
 import re
+import threading
+from typing import Literal
 from icecream import ic
-from azure.monitor.opentelemetry import configure_azure_monitor
+from sentence_transformers import SentenceTransformer
+import uvicorn
+from fastapi import FastAPI, Path, Query
 from app.shared.env import *
-from app.web import beanops
-
-if APPINSIGHTS_CONNECTION_STRING:
-    configure_azure_monitor(
-        connection_string=APPINSIGHTS_CONNECTION_STRING, 
-        logger_name=APP_NAME, 
-        instrumentation_options={"fastapi": {"enabled": True}})  
-logger: logging.Logger = logging.getLogger(APP_NAME)
-logger.setLevel(logging.INFO)
-
-from app.pybeansack.mongosack import Beansack, NEWEST_AND_TRENDING
+from app.shared.utils import *
+from app.pybeansack.mongosack import NEWEST
 from app.pybeansack.models import *
 
-BEAN_FIELDS = {K_URL: 1, K_TITLE: 1, "gist": 1, "categories": 1, "entities": 1, K_SUMMARY: 1, K_KIND: 1, K_IMAGEURL: 1, K_AUTHOR: 1, K_SOURCE: 1, K_CREATED: 1}
-db: Beansack = None
+logger: logging.Logger = logging.getLogger(config.app.name)
+logger.setLevel(logging.INFO)
 
-def get_all_sources():
-    return sorted(db.beanstore.distinct(K_SOURCE))
+FIELDS_WITH_CONTENT = {
+    K_ID: 0, 
+    K_COLLECTED: 0, K_UPDATED: 0,  
+    K_TRENDSCORE: 0, 
+    K_TAGS: 0, K_GIST: 0, 
+    K_EMBEDDING: 0, K_CLUSTER_ID: 0, 
+    "is_scraped": 0, 
+    K_SITE_RSS_FEED: 0, K_SITE_FAVICON: 0, K_SITE_BASE_URL: 0 
+}
+FIELDS_WITHOUT_CONTENT = {**FIELDS_WITH_CONTENT, **{K_CONTENT: 0}}
 
-def get_all_tags():
-    return db.beanstore.distinct(K_TAGS)
-
-def query_beans(
-    kind: str, 
-    entities: str|list[str]|list[list[str]], 
-    categories: str|list[str], 
-    sources: str|list[str], 
-    published_after: datetime, 
-    start: int, 
-    limit: int
-) -> list[Bean]:
-    filter=create_filter(
-        kind=kind,
-        entities=entities, 
-        categories=categories, 
-        sources=sources, 
-        published_after=published_after
-    )
-    return db.get_beans(filter=filter, sort_by=NEWEST_AND_TRENDING, skip=start, limit=limit, projection=BEAN_FIELDS)
-
-def query_distinct_beans_per_cluster(
-    kind: str, 
-    entities: str|list[str]|list[list[str]], 
-    categories: str|list[str], 
-    sources: str|list[str], 
-    published_after: datetime, 
-    start: int, 
-    limit: int
-):
-    filter=create_filter(
-        kind=kind,
-        entities=entities, 
-        categories=categories, 
-        sources=sources, 
-        published_after=published_after
-    )
-    return db.query_beans_per_cluster(filter, NEWEST_AND_TRENDING, start, limit, projection=BEAN_FIELDS)
-
-def search_distinct_beans_per_cluster(
-    query: str,
-    min_score: float,
-    kind: str, 
-    entities: str|list[str]|list[list[str]], 
-    categories: str|list[str], 
-    sources: str|list[str], 
-    published_after: datetime, 
-    start: int, 
-    limit: int
-):
-    filter=create_filter(
-        kind=kind,
-        entities=entities, 
-        categories=categories, 
-        sources=sources, 
-        published_after=published_after
-    )
-    # db.vector_search_beans(nlp.)
+create_projection = lambda with_content: FIELDS_WITH_CONTENT if with_content else FIELDS_WITHOUT_CONTENT
+convert_kind = lambda val: BLOG if val == "blogs" else NEWS
 
 def create_filter(
     kind: str,
-    entities: str|list[str]|list[list[str]], 
     categories: str|list[str], 
+    entities: str|list[str], 
+    regions: str|list[str],
     sources: str|list[str],
-    published_after: int
+    published_after: datetime,
+    with_content: bool
 ) -> dict:   
+    # pre process since they will all go to the tags filter
+    tags = []
+    if categories: tags.append({K_TAGS: lower_case(categories)})
+    if entities: tags.append({K_TAGS: lower_case(entities)})
+    if regions: tags.append({K_TAGS: lower_case(regions)})
+
     filter = {}
-    if kind: filter[K_KIND] = lower_case(kind)
-    if entities: filter[K_TAGS] = case_insensitive(entities)  
-    if categories: filter["categories"] = case_insensitive(entities)
-    if sources: filter[K_SOURCE] = case_insensitive(sources)
+    if kind: filter[K_KIND] = convert_kind(lower_case(kind))
+    if tags: filter["$and"] = tags
+    if sources: filter[K_SOURCE] = lower_case(sources)
     if published_after: filter[K_CREATED] = {"$gte": published_after}
+    if with_content: filter.update({
+        K_CONTENT: {"$exists": True},
+        '$or': [
+            {'is_scraped': False},
+            {'is_scraped': {"$exists": False}}
+        ]
+    })
+    
     return filter
 
-field_value = lambda items: {"$in": items} if isinstance(items, list) else items
-lower_case = lambda items: {"$in": [item.lower() for item in items]} if isinstance(items, list) else items.lower()
-case_insensitive = lambda items: {"$in": [re.compile(item, re.IGNORECASE) for item in items]} if isinstance(items, list) else re.compile(items, re.IGNORECASE)
+Q = Query(..., min_length=3)
+SEARCH_TYPE = Query(default = "vector", description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search")   
+SIMILARITY_SCORE = Query(default=config.filters.bean.default_accuracy, description="Minimum cosine similarity score (only applicable to vector search)")
+URL = Query(..., min_length="10")
+QUERY_KIND = Query(default=None)
+CATEGORIES = Query(max_length=MAX_LIMIT, default=None)
+ENTITIES = Query(max_length=MAX_LIMIT, default=None)
+REGIONS = Query(max_length=MAX_LIMIT, default=None)
+SOURCES = Query(max_length=MAX_LIMIT, default=None)
+PUBLISHED_AFTER = Query(default=None)
+WITH_CONTENT = Query(default=False)
+GROUP_BY = Query(default=None, description="[Optional] Return one item per `source`, `author` or `cluster` (news and blogs about the same items are groped in one cluster).")
+OFFSET = Query(ge=0, default=0)
+LIMIT = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=config.filters.bean.default_limit)
 
+embedder: SentenceTransformer = None
+api_router = FastAPI(title=config.app.name, root_path="/api", version="0.0.1", description="API for Espresso (Alpha)")
 
-import uvicorn
-from fastapi import FastAPI, Query
-from app.shared import utils, messages
+def embed_query(query: str) -> list[float]:
+    """Generate embeddings using the ONNX model."""
+    return embedder.encode("query: "+query, convert_to_numpy=False).tolist()
 
-router = FastAPI(title=APP_NAME, version="0.0.1", description="API for Espresso (Alpha)")
-
-def initialize_server():
-    global db
-    db = Beansack(DB_CONNECTION_STRING, DB_NAME)
-    logger.info("server_initialized")
-
-@router.get("/sources", response_model=list[str]|None)
+@api_router.get("/sources", response_model=list[str]|None)
 async def get_sources() -> list[str]:
-    return beanops.get_all_sources()
+    return db.beanstore.distinct("source")
 
-@router.get("/categories", response_model=list[str]|None)
+@api_router.get("/categories", response_model=list[str]|None)
 async def get_categories() -> list[str]:
-    return beanops.get_all_categories()
+    return db.beanstore.distinct("categories")
 
-@router.get("/entities", response_model=list[str]|None)
+@api_router.get("/entities", response_model=list[str]|None)
 async def get_entities() -> list[str]:
-    return beanops.get_all_entities()
+    return db.beanstore.distinct("entities")
 
-@router.get("/{kind}", response_model=list[Bean]|None)
+@api_router.get("/regions", response_model=list[str]|None)
+async def get_regions() -> list[str]:
+    return db.beanstore.distinct("regions")
+
+@api_router.get("/new/{kind}", response_model=list[Bean]|None)
 async def get_beans(
-    kind: str,
-    q: str = Query(),
-    acc: float = Query(),
-    categories: list[str] = Query(),
-    entities: list[str] = Query(),
-    sources: list[str] = Query(),
-    published_after: str = Query()
+    kind: Literal["news", "blogs"] = Path(),
+    categories: list[str] = CATEGORIES,
+    entities: list[str] = ENTITIES,
+    regions: list[str] = REGIONS,
+    sources: list[str] = SOURCES,
+    published_after: datetime = PUBLISHED_AFTER,
+    with_content: bool = WITH_CONTENT,
+    group_by: Literal["cluster_id", "source", "author", None] = GROUP_BY,
+    offset: int = OFFSET,
+    limit: int = LIMIT
 ) -> list[Bean]:
-    if q: return beanops.search_beans(q, acc, entities, kind, sources, DEFAULT_WINDOW, "Latest", 0, MAX_LIMIT)
-    else: return beanops.get_beans(None, entities, kind, sources, DEFAULT_WINDOW, "Latest", 0, MAX_LIMIT)
+    filter = create_filter(kind, categories, entities, regions, sources, published_after, with_content)
+    project = create_projection(with_content) 
+    return db.query_beans(filter=ic(filter), group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
 
-@router.get("/{kind}/markdown")
-async def get_beans_markdown(
-    kind: str,
-    q: str = Query(default=None),
-    acc: float = Query(default=DEFAULT_ACCURACY),
-    categories: list[str] = Query(default=None),
-    entities: list[str] = Query(default=None),
-    sources: list[str] = Query(default=None),
-    published_after: str = Query(default=None)
-):
-    if q: beans = beanops.search_beans(q, acc, entities, kind, sources, MAX_WINDOW, "Latest", 0, MAX_LIMIT)
-    else: beans = beanops.get_beans(None, entities, kind, sources, MAX_WINDOW, "Latest", 0, MAX_LIMIT)
-    markdown = "\n\n".join([bean.digest() for bean in beans])
-    # for bean in beans:
-    #     markdown += bean.digest()+"\n\n"
-    #     related = beanops.get_related(bean.url, bean.tags, None, None, MAX_WINDOW, 4)
-    #     if related:
-    #         markdown += f"## Related {kind}:\n"
-    #         markdown += "\n\n".join("##"+r.digest() for r in related)
-    #     markdown += "\n--------------------------------\n"
-    return markdown
-
-@router.get("/beans", response_model=list[Bean]|None)
-async def get_beans(
-    url: list[str] | None = Query(max_length=MAX_LIMIT, default=None),
-    tag: list[str] | None = Query(max_length=MAX_LIMIT, default=None),
-    kind: list[str] | None = Query(max_length=MAX_LIMIT, default=None), 
-    source: list[str] = Query(max_length=MAX_LIMIT, default=None),
-    ndays: int | None = Query(ge=MIN_WINDOW, le=MAX_WINDOW, default=None), 
-    start: int | None = Query(ge=0, default=0), 
-    limit: int | None = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=MAX_LIMIT)):
-    """
-    Retrieves the bean(s) with the given URL(s).
-    """
-    res = get_beans(url, tag, kind, source, ndays, start, limit)  
-    log('get_beans', url=url, tag=tag, kind=kind, source=source, ndays=ndays, start=start, limit=limit, num_returned=res)
-    return res
-
-@router.get("/search", response_model=list[Bean]|None)
+@api_router.get("/search", response_model=list[Bean]|None)
 async def search_beans(
-    q: str, 
-    acc: float = Query(ge=0, le=1, default=DEFAULT_ACCURACY),
-    tag: list[str] | None = Query(max_length=MAX_LIMIT, default=None),
-    kind: list[str] | None = Query(max_length=MAX_LIMIT, default=None), 
-    source: list[str] = Query(max_length=MAX_LIMIT, default=None),
-    ndays: int | None = Query(ge=MIN_WINDOW, le=MAX_WINDOW, default=None), 
-    start: int | None = Query(ge=0, default=0), 
-    limit: int | None = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=DEFAULT_LIMIT)):
-    """
-    Search beans by various parameters.
-    q: query string
-    acc: accuracy
-    tags: list of tags
-    kinds: list of kinds
-    source: list of sources
-    ndays: last n days
-    start: start index
-    limit: limit
-    """
-    res = vector_search_beans(q, acc, tag, kind, source, ndays, start, limit)
-    log('search_beans', q=q, acc=acc, tag=tag, kind=kind, source=source, ndays=ndays, start=start, limit=limit, num_returned=res)
-    return res
+    q: str = Q,
+    search_type: Literal["vector", "bm25"] = SEARCH_TYPE,    
+    similarity_score: float = SIMILARITY_SCORE,
+    kind: Literal["news", "blogs", None] = QUERY_KIND,
+    categories: list[str] = CATEGORIES,
+    entities: list[str] = ENTITIES,
+    regions: list[str] = REGIONS,
+    sources: list[str] = SOURCES,
+    published_after: datetime = PUBLISHED_AFTER,
+    with_content: bool = WITH_CONTENT,
+    group_by: Literal["cluster_id", "source", "author", None] = GROUP_BY,
+    offset: int = OFFSET,
+    limit: int = LIMIT
+) -> list[Bean]:
+    filter = create_filter(kind, categories, entities, regions, sources, published_after, with_content)
+    project = create_projection(with_content) 
+    if search_type == "vector": return db.vector_search_beans(embedding=embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
+    if search_type == "bm25": return db.text_search_beans(query=q, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
 
-@router.get("/trending", response_model=list[Bean]|None)
-async def trending_beans(
-    tag: list[str] | None = Query(max_length=MAX_LIMIT, default=None),
-    kind: list[str] | None = Query(default=None), 
-    source: list[str] = Query(max_length=MAX_LIMIT, default=None),
-    ndays: int | None = Query(ge=MIN_WINDOW, le=MAX_WINDOW, default=None), 
-    start: int | None = Query(ge=0, default=0), 
-    limit: int | None = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=MAX_LIMIT)):
-    """
-    Retuns a set of unique beans, meaning only one bean from each cluster will be included in the result.
-    To retrieve all the beans irrespective of cluster, use /beans endpoint.
-    To retrieve the beans related to the beans in this result set, use /beans/related endpoint.
-    """
-    res = get_trending_beans(tag, kind, source, ndays, start, limit)
-    log('trending_beans', tag=tag, kind=kind, source=source, ndays=ndays, start=start, limit=limit, num_returned=res)
-    return res
-
-@router.get("/related", response_model=list[Bean]|None)
+@api_router.get("/related", response_model=list[Bean]|None)
 async def get_related(
-    url: str, 
-    tag: list[str] | None = Query(max_length=MAX_LIMIT, default=None),
-    kind: list[str] | None = Query(default=None), 
-    source: list[str] = Query(max_length=MAX_LIMIT, default=None),
-    ndays: int | None = Query(ge=MIN_WINDOW, le=MAX_WINDOW, default=None), 
-    start: int | None = Query(ge=0, default=0), 
-    limit: int | None = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=MAX_LIMIT)):
+    url: str = Query(),
+    kind: Literal["news", "blogs", None] = QUERY_KIND,
+    categories: list[str] = CATEGORIES,
+    entities: list[str] = ENTITIES,
+    regions: list[str] = REGIONS,
+    sources: list[str] = SOURCES,
+    published_after: datetime = PUBLISHED_AFTER,
+    with_content: bool = WITH_CONTENT,
+    limit: int = LIMIT
+) -> list[Bean]:
     """
     Retrieves the related beans to the given bean.
-    """    
-    res = get_related(url, tag, kind, source, ndays, start, limit)
-    log('get_related_beans', url=url, tag=tag, kind=kind, source=source, ndays=ndays, start=start, limit=limit, num_returned=res)
-    return res
-
-
-# @app.get("/chatters", response_model=list[Chatter]|None)
-# async def get_chatters(url: list[str] | None = Query(max_length=MAX_LIMIT, default=None)):
-#     """
-#     Retrieves the latest social media stats for the given bean(s).
-#     """
-#     res = shared.beanops.get_chatters(url)
-#     log(logger, 'get_chatters', url=url, num_returned=res)
-#     return res
-
-# @app.get("/sources/all", response_model=list|None)
-# async def get_sources():
-#     """
-#     Retrieves the list of sources.
-#     """
-#     res = get_all_sources()
-#     log('get_sources', num_returned=res)
-#     return res
-
-# @app.get("/tags/all", response_model=list|None)
-# async def get_tags():
-#     """
-#     Retrieves the list of tags.
-#     """
-#     res = get_all_tags()
-#     log('get_tags', num_returned=res)
-#     return res
-
-# initialize_server()
-
+    """  
+    filter = create_filter(kind, categories, entities, regions, sources, published_after, with_content)
+    project = create_projection(with_content) 
+    return db.query_related_beans(url, filter=filter, sort_by=NEWEST, limit=limit, project = project)
 
 
 def run():
-    initialize_server()
-    uvicorn.run(router, host="0.0.0.0", port=8080)
+    global embedder
+    embedder = SentenceTransformer(config.embedder.path, cache_folder=".models", tokenizer_kwargs={"truncation": True})
+    uvicorn.run(api_router, host="0.0.0.0", port=8080)
 
