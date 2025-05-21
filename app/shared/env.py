@@ -52,12 +52,14 @@ def load_env(app_defaults = None, env_settings: str = "./env.toml"):
     
     global db, config
     config = _dict_to_namespace(values)
-    db = Beansack(config.database.connection_string, config.database.name)
-    if hasattr(config, 'monitoring'):   
-        configure_azure_monitor(
-            connection_string=config.monitoring.az_appinsights_connection_string, 
-            logger_name=config.app.name, 
-            instrumentation_options={"fastapi": {"enabled": True}})  
+    db = Beansack(os.getenv('DB_CONNECTION_STRING'), os.getenv('DB_NAME'))
+    
+    az_monitoring = os.getenv('AZ_APPINSIGHTS_CONNECTION_STRING')
+    if az_monitoring:  configure_azure_monitor(
+        connection_string=az_monitoring, 
+        logger_name=config.app.name, 
+        instrumentation_options={"fastapi": {"enabled": True}}
+    )  
 
 
 # def load_env():

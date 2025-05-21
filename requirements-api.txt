@@ -1,4 +1,3 @@
-openai
 fastapi[standard]
 slack-bolt
 pydantic
@@ -8,4 +7,4 @@ memoization
 azure-monitor-opentelemetry
 tomli
 icecream
-python-dotenv
+python-dotenv==1.0.0

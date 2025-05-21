@@ -2,9 +2,9 @@
 ## USER INPUT PARSER FOR STRUCTURED INPUT ##
 ############################################
 
-from enum import Enum
 import argparse
 import shlex
+from enum import Enum
 from app.pybeansack.models import *
 
 class ContentType(str, Enum):    

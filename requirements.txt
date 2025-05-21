@@ -8,12 +8,10 @@ slack-bolt
 pydantic
 retry
 pyjwt
-praw
 inflect
-openai
 humanize
 memoization
 azure-monitor-opentelemetry
-simple_toml_configurator
 tomli
 icecream
+python-dotenv==1.0.0

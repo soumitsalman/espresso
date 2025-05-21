@@ -2,8 +2,6 @@
 ## ARTICLE WRITER ##
 ####################
 from retry import retry
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +15,8 @@ WRITER_BATCH_SIZE = 6144
 DEFAULT_CONTENT_TYPE = "blog"
 
 class ArticleWriter:
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import PromptTemplate
     def __init__(self, llm: str):
         prompt = PromptTemplate.from_template(template=WRITER_TEMPLATE)
         self.chain = prompt | llm | StrOutputParser()
