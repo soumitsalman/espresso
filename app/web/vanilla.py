@@ -1,11 +1,15 @@
 import os
 import logging
 from icecream import ic
-from app.web import beanops, vanilla_pages
-from app.pybeansack.models import User, Channel
-from app.shared.utils import NavigationContext, log
-from app.shared import messages
+from pybeansack.models import User, Page
 from app.shared.env import *
+from app.shared.consts import *
+from app.web import beanops, vanilla_pages
+from app.web.context import *
+
+# from app.shared.utils import *
+
+
 
 import jwt
 from datetime import datetime, timedelta
@@ -106,7 +110,7 @@ def initialize_server():
     
     logger.info("server_initialized")
 
-def validate_barista(barista_id: str) -> Channel:
+def validate_barista(barista_id: str) -> Page:
     barista_id = barista_id.lower()
     barista = beanops.db.get_barista(barista_id)
     if not barista:
@@ -144,12 +148,12 @@ def validate_authenticated_user():
         raise HTTPException(status_code=401, detail="Unauthorized")
     return user
 
-def create_context(page_id: str|Channel, request: Request) -> NavigationContext:
+def create_context(page_id: str|Page, request: Request) -> Context:
     try:
         user = validate_authenticated_user()
     except:
         user = get_unauthenticated_user(request)
-    return NavigationContext(page_id, user)
+    return Context(page_id, user)
 
 def login_user(user: dict|User):
     email = user.email if isinstance(user, User) else user['email']
@@ -236,21 +240,21 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
     return FileResponse(image_id, media_type="image/png")
 
 @ui.page("/", title="Espresso")
-@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def home(request: Request):
     context = create_context("home", request)  
     await vanilla_pages.render_beans_for_home(context)
 
-@ui.page("/baristas/{barista_id}", title="Espresso")
-@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
-async def barista(request: Request, barista_id: Channel = Depends(validate_barista, use_cache=True)): 
+@ui.page("/page/{barista_id}", title="Espresso")
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
+async def barista(request: Request, barista_id: Page = Depends(validate_barista, use_cache=True)): 
     context = create_context(barista_id, request)
     if not context.has_read_permission:
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla_pages.render_beans_for_barista(context)
 
-@ui.page("/sources", title="Espresso News, Posts and Blogs")
-@limiter.limit(LIMIT_10_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+@ui.page("/source", title="Espresso News, Posts and Blogs")
+@limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def source_barista(
     request: Request, 
     feed: str = Query(..., min_length=2),
@@ -262,16 +266,16 @@ async def source_barista(
     await vanilla_pages.render_beans_for_source(context)
 
 @ui.page("/search", title="Espresso Search")
-@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def search(request: Request, 
-    query: str = None,
+    q: str = None,
     acc: float = Query(ge=0, le=1, default=config.filters.bean.default_accuracy),
     ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=config.filters.bean.default_window),
     tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
     source: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
     context = create_context("search", request)
-    context.query = query
+    context.query = q
     context.accuracy = acc
     context.last_ndays = ndays
     context.tags = tag
@@ -279,30 +283,19 @@ async def search(request: Request,
     await vanilla_pages.render_search(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
-@limiter.limit(LIMIT_5_A_MINUTE, error_message=messages.LIMIT_ERROR_MSG)
+@limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def register_user(request: Request, userinfo: dict = Depends(validate_registration)):
-    context = NavigationContext("registration", userinfo)
+    context = Context("registration", userinfo)
     await vanilla_pages.render_registration(context)
     
-GOOGLE_ANALYTICS_SCRIPT = '''
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-NBSTNYWPG1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-NBSTNYWPG1');
-</script>
-'''
 
 def run():
-    app.add_middleware(SessionMiddleware, secret_key=config.app.storage_secret) # needed for oauth
+    app.add_middleware(SessionMiddleware, secret_key=os.getenv('STORAGE_SECRET')) # needed for oauth
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    ui.add_head_html(GOOGLE_ANALYTICS_SCRIPT, shared=True)
     ui.run(
         title=config.app.name, 
-        storage_secret=config.host.storage_secret,
+        storage_secret=os.getenv('STORAGE_SECRET'),
         dark=True, 
         favicon="./images/favicon.ico", 
         port=config.host.port, 

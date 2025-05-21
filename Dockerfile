@@ -1,23 +1,17 @@
-FROM python:3.12-slim
-
-RUN apt update && apt upgrade -y
-RUN apt install -y \
-    cmake \
-    make \
-    g++ \
-    build-essential \
-    wget \
-    git
+FROM python:3.11-slim
 
 WORKDIR /espresso
-COPY . . 
 
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
-RUN pip install --no-cache-dir --upgrade -r app/pybeansack/requirements.txt
+COPY . .
+RUN rm -r app/connectors
+RUN rm -r app/slack
+RUN pip install --no-cache-dir torch==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir -r pybeansack/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN mkdir -p /espresso/.models
-RUN wget -O /espresso/.models/gist-small-embeddingv-0-q8.gguf https://huggingface.co/soumitsr/GIST-small-Embedding-v0-Q8_0-GGUF/resolve/main/gist-small-embedding-v0-q8_0.gguf
-ENV EMBEDDER_PATH=/espresso/.models/gist-small-embeddingv-0-q8.gguf
+ENV EMBEDDER_PATH=/espresso/models/GIST-small-Embedding-v0
+ENV OTEL_SERVICE_NAME=ESPRESSO-WEB
+ENV MODE=web
 
 EXPOSE 8080
 CMD ["python3", "run.py"]

@@ -1,26 +1,24 @@
-from app.shared.messages import *
+from app.shared.consts import *
 from app.shared.env import *
 from app.web import beanops
-from app.pybeansack.models import *
-from app.pybeansack.mongosack import LATEST_AND_TRENDING, NEWEST_AND_TRENDING
+from pybeansack.models import *
+from app.web.context import *
 from app.web.renderer import *
 from app.web.custom_ui import *
 from nicegui import ui
-import inflect
 
-# TAG_FILTER = "tag"
-# TOPIC_FILTER = "source"
+
 HOME_PAGE_NDAYS = None
 KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
-async def render_beans_for_home(context: NavigationContext):
+async def render_beans_for_home(context: Context):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_home(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
     
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+    def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             context.tags = filter_item
         return context
@@ -54,7 +52,7 @@ async def render_beans_for_home(context: NavigationContext):
 #                     render_error_text(NOTHING_TRENDING)                            
 #     render_footer()
 
-async def render_beans_for_barista(context: NavigationContext):  
+async def render_beans_for_barista(context: Context):  
     # NOTE: experimental feature - using topic filter if the barista query is source based
     use_topic_filter = context.page.query_sources and not context.page.query_embedding
 
@@ -66,7 +64,7 @@ async def render_beans_for_barista(context: NavigationContext):
         if use_topic_filter: return {b.id: b.title for b in beanops.get_channels(config.filters.page.categories, beanops.BARISTA_MINIMAL_FIELDS)}
         # else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
 
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+    def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             if use_topic_filter: context.topic = filter_item
             else: context.tags = filter_item
@@ -75,14 +73,14 @@ async def render_beans_for_barista(context: NavigationContext):
     render_barista_banner(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-async def render_beans_for_source(context: NavigationContext):
+async def render_beans_for_source(context: Context):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_source(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
         
     get_filters_items = lambda: {b.id: b.title for b in beanops.get_channels(config.filters.page.categories, beanops.BARISTA_MINIMAL_FIELDS)}
 
-    def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+    def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             context.topic = filter_item
         return context
@@ -90,7 +88,7 @@ async def render_beans_for_source(context: NavigationContext):
     render_banner(context.sources)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-# async def render_custom_page(context: NavigationContext): 
+# async def render_custom_page(context: Context): 
 #     initial_tags = context.tags
 #     use_topic_filter = bool(context.sources)
 
@@ -102,7 +100,7 @@ async def render_beans_for_source(context: NavigationContext):
 #         if use_topic_filter: return {b.id: b.title for b in beanops.get_baristas(DEFAULT_TOPIC_FILTERS, beanops.BARISTA_MINIMAL_FIELDS)}
 #         else: return beanops.search_tags(None, None, context.tags, None, context.sources, None, 0, MAX_FILTER_TAGS)
 
-#     def apply_filter(context: NavigationContext, filter_item: str|list[str] = MAINTAIN_VALUE):
+#     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
 #         if filter_item is not MAINTAIN_VALUE:
 #             if use_topic_filter: context.topic = filter_item
 #             else: context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
@@ -111,7 +109,7 @@ async def render_beans_for_source(context: NavigationContext):
 #     render_banner(context.tags or context.sources)
 #     render_barista_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-# def render_content(context: NavigationContext, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
+# def render_content(context: Context, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
 #     def apply_filter(**kwargs):
 #         apply_filter_func(**kwargs)
 #         render_beans_panel.refresh()
@@ -145,7 +143,7 @@ async def render_beans_for_source(context: NavigationContext):
 #     render_footer()
 
 def render_page_contents(
-    context: NavigationContext, 
+    context: Context, 
     retrieve_beans_func: Callable, 
     get_filter_items_func: Callable = None,
     apply_filter_func: Callable = None
@@ -153,7 +151,7 @@ def render_page_contents(
     context.kind, context.sort_by = config.filters.bean.default_kind, config.filters.bean.default_sort_by # starting default values
 
     @ui.refreshable
-    def render_beans_panel(ctx: NavigationContext):     
+    def render_beans_panel(ctx: Context):     
         # container = ui.row(wrap=True, align_items = "start").classes(STRETCH_FIT)           
         return render_beans_as_extendable_list(ctx, retrieve_beans_func).classes("w-full")
     
@@ -194,7 +192,7 @@ def render_page_contents(
     render_similar_channels(context)
     render_footer()
 
-async def render_search(context: NavigationContext): 
+async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.bean.default_kind
 
     def retrieve_beans(start, limit):
@@ -235,7 +233,7 @@ async def render_search(context: NavigationContext):
     
     render_footer()
 
-async def render_registration(context: NavigationContext):
+async def render_registration(context: Context):
     userinfo = context.user
 
     async def success():

@@ -1,28 +1,15 @@
-# Builder stage
-FROM python:3.11-slim AS builder
-WORKDIR /espresso
-COPY . .
-RUN pip install --no-cache-dir torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir sentence-transformers
-RUN pip install --no-cache-dir -r app/pybeansack/requirements.txt
-RUN pip install --no-cache-dir -r requirements-api.txt
-RUN mkdir .models
-RUN transformers-cli download --cache-dir /espresso/.models avsolatorio/GIST-small-Embedding-v0
-
-# Final stage
 FROM python:3.11-slim
+
 WORKDIR /espresso
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /espresso/.models /espresso/.models
+
 COPY . .
 RUN rm -r app/connectors
 RUN rm -r app/web
+RUN pip install --no-cache-dir torch==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir -r pybeansack/requirements.txt
+RUN pip install --no-cache-dir -r requirements-api.txt
 
-ENV HF_HOME=/espresso/.models
-ENV SENTENCE_TRANSFORMERS_HOME=/espresso/.models
-ENV MODELS_CACHE=/espresso/.models
-ENV EMBEDDER_PATH=avsolatorio/GIST-small-Embedding-v0
+ENV EMBEDDER_PATH=/espresso/models/GIST-small-Embedding-v0
 ENV OTEL_SERVICE_NAME=ESPRESSO-API
 ENV MODE=api
 

@@ -3,13 +3,15 @@ import threading
 from memoization import cached
 from icecream import ic
 from sentence_transformers import SentenceTransformer
-from app.pybeansack.mongosack import LATEST_AND_TRENDING, NEWEST_AND_TRENDING
-from app.pybeansack.models import *
+from pybeansack.mongosack import LATEST_AND_TRENDING, NEWEST_AND_TRENDING
+from pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
+from app.shared.consts import *
+from app.web.context import *
 
+CACHE_SIZE = 100
 SORT_BY = {"Latest": NEWEST_AND_TRENDING, "Trending": LATEST_AND_TRENDING}
-
 BEAN_HEADER_FIELDS = {K_URL: 1, K_TITLE: 1, K_KIND: 1, K_IMAGEURL: 1, K_SOURCE: 1, K_SITE_NAME: 1, K_CREATED: 1, K_LIKES: 1, K_COMMENTS: 1, K_SHARES: 1}
 BEAN_BODY_FIELDS = {K_URL: 1, K_TAGS: 1, K_AUTHOR: 1}
 if config.filters.bean.body == "whole": BEAN_BODY_FIELDS.update({K_SUMMARY: 1})
@@ -46,7 +48,7 @@ def get_beans_for_home(tags: str|list[str], kinds: str|list[str], sources: str|l
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_page(
-    channel: Channel, 
+    page: Page, 
     filter_tags: str|list[str], 
     filter_kinds: str|list[str], 
     filter_category: str, # only applicable if barista does not query_embedding
@@ -54,22 +56,22 @@ def get_beans_for_page(
 ):
     sort_by = SORT_BY[sort_by]
     filter=create_filter(
-        kinds = filter_kinds or channel.query_kinds, 
-        entities = [filter_tags, channel.query_tags], 
-        sources = channel.query_sources, 
-        urls = channel.query_urls,
+        kinds = filter_kinds or page.query_kinds, 
+        entities = [filter_tags, page.query_tags], 
+        sources = page.query_sources, 
+        urls = page.query_urls,
         created_in_last_ndays = None, 
         updated_in_last_ndays = None
     )
     # if the barista is primarily based on specific urls, then just search for those
-    if channel.query_urls: return db.query_beans(filter=filter, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    if channel.query_embedding: return db.vector_search_beans(embedding=channel.query_embedding, similarity_score=channel.query_distance or config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    if channel.query_tags or channel.query_sources: 
+    if page.query_urls: return db.query_beans(filter=filter, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    if page.query_embedding: return db.vector_search_beans(embedding=page.query_embedding, similarity_score=page.query_distance or config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    if page.query_tags or page.query_sources: 
         if filter_category: return db.vector_search_beans(embedding=get_barista(filter_category, BARISTA_EMBEDDING_FIELDS).query_embedding, similarity_score=config.filters.bean.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
         return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_filter_tags_for_page(barista: Channel, start: int, limit: int):
+def get_filter_tags_for_page(barista: Page, start: int, limit: int):
     # NOTE: no need for querying the urls separately since query tags are already there
     filter=create_filter(
         tags = barista.query_tags, 
@@ -136,19 +138,19 @@ BARISTA_DEFAULT_FIELDS = {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1, "public": 1, "o
 BARISTA_EMBEDDING_FIELDS = {K_ID: 1, K_EMBEDDING: 1}
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
-def get_barista(id: str, project: dict = BARISTA_DEFAULT_FIELDS) -> Channel|None:
+def get_barista(id: str, project: dict = BARISTA_DEFAULT_FIELDS) -> Page|None:
     barista = db.baristas.find_one(filter={K_ID: id}, projection=project)
-    if barista: return Channel(**barista)
+    if barista: return Page(**barista)
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_channels(ids: list[str], project: dict = BARISTA_DEFAULT_FIELDS) -> list[Channel]:
+def get_pages(ids: list[str], project: dict = BARISTA_DEFAULT_FIELDS) -> list[Page]:
     if not ids: return
     result = db.baristas.find(
         filter={K_ID: {"$in": ids}}, 
         sort={K_TITLE: 1}, 
         projection=project
     )
-    return [Channel(**barista) for barista in result]
+    return [Page(**barista) for barista in result]
 
 # @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_following_baristas(user: User):
@@ -180,17 +182,17 @@ def get_following_baristas(user: User):
             "$sort": {K_TITLE: 1}
         }
     ]
-    return [Channel(**barista) for barista in db.users.aggregate(pipeline)]
+    return [Page(**barista) for barista in db.users.aggregate(pipeline)]
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_channel_suggestions(context: NavigationContext):
+def get_page_suggestions(context: Context):
     return db.sample_baristas(5, BARISTA_DEFAULT_FIELDS)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_baristas(query: str):
     return db.search_baristas(query, BARISTA_DEFAULT_FIELDS)
 
-def is_bookmarked(context: NavigationContext, url: str):
+def is_bookmarked(context: Context, url: str):
     if not context.is_registered: return False
     return db.is_bookmarked(context.user, url)
 

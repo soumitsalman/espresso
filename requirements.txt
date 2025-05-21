@@ -1,4 +1,4 @@
-sentence-transformers
+optimum[onnxruntime]
 nicegui
 fastapi[standard]
 slowapi
@@ -14,4 +14,4 @@ memoization
 azure-monitor-opentelemetry
 tomli
 icecream
-python-dotenv==1.0.0
+python-dotenv

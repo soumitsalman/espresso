@@ -6,7 +6,7 @@ from app.web import beanops
 from .renderer import *
 from .slack_stores import MongoInstallationStore
 from shared.utils import *
-from shared.messages import *
+from app.shared.consts import *
 from shared import prompt_parser, espressops
 from icecream import ic
 from slack_bolt import App

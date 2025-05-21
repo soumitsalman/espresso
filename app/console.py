@@ -2,15 +2,18 @@ from icecream import ic
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.web import beanops
-from shared import espressops, messages, prompt_parser, utils
-from datetime import datetime as dt
+from pybeansack.mongosack import *
+from pybeansack.models import *
+from app.shared.consts import *
+from app.shared.utils import *
+from app.shared.embedder import *
+from app.shared.prompt_parser import *
 
 APP_NAME = "Espresso:"
 
 def render_beans(beans):
     if not beans:
-        print(APP_NAME, messages.NOTHING_FOUND)  
+        print(APP_NAME, consts.NOTHING_FOUND)  
         return    
     print(APP_NAME, len(beans), "Beans")
     [print(bean.title) for bean in beans]

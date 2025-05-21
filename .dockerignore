@@ -2,6 +2,9 @@
 *.json
 *.log
 .venv
+.models
 .deployment
 .nicegui
+download_models.py
+setup.sh
 *__pycache__

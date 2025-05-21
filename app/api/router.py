@@ -1,15 +1,13 @@
 import logging
-import re
-import threading
-from typing import Literal
-from icecream import ic
-from sentence_transformers import SentenceTransformer
 import uvicorn
 from fastapi import FastAPI, Path, Query
+from typing import Literal
+
+from pybeansack.mongosack import NEWEST
+from pybeansack.models import *
 from app.shared.env import *
 from app.shared.utils import *
-from app.pybeansack.mongosack import NEWEST
-from app.pybeansack.models import *
+from app.shared.consts import *
 
 logger: logging.Logger = logging.getLogger(config.app.name)
 logger.setLevel(logging.INFO)
@@ -73,12 +71,7 @@ GROUP_BY = Query(default=None, description="[Optional] Return one item per `sour
 OFFSET = Query(ge=0, default=0)
 LIMIT = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=config.filters.bean.default_limit)
 
-embedder: SentenceTransformer = None
 api_router = FastAPI(title=config.app.name, version="0.0.1", description=config.app.description)
-
-def embed_query(query: str) -> list[float]:
-    """Generate embeddings using the ONNX model."""
-    return embedder.encode("query: "+query, convert_to_numpy=False).tolist()
 
 @api_router.get("/sources", response_model=list[str]|None)
 async def get_sources() -> list[str]:
@@ -131,7 +124,7 @@ async def search_beans(
 ) -> list[Bean]:
     filter = create_filter(kind, categories, entities, regions, sources, published_after, with_content)
     project = create_projection(with_content) 
-    if search_type == "vector": return db.vector_search_beans(embedding=embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
+    if search_type == "vector": return db.vector_search_beans(embedding=embedder.embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
     if search_type == "bm25": return db.text_search_beans(query=q, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
 
 @api_router.get("/related", response_model=list[Bean]|None)
@@ -153,9 +146,6 @@ async def get_related(
     project = create_projection(with_content) 
     return db.query_related_beans(url, filter=filter, sort_by=NEWEST, limit=limit, project = project)
 
-
 def run():
-    global embedder
-    embedder = SentenceTransformer(os.getenv('EMBEDDER_PATH'), cache_folder=os.getenv('MODELS_CACHE'), tokenizer_kwargs={"truncation": True})
-    uvicorn.run(api_router, host="0.0.0.0", port=config.host.port, root_path="/api")
+    uvicorn.run(api_router, host="0.0.0.0", port=8080)
 
