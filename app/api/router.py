@@ -1,9 +1,10 @@
 import logging
-from fastapi.responses import FileResponse
 import uvicorn
 from fastapi import FastAPI, Path, Query
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import Literal
+from icecream import ic
 
 from pybeansack.mongosack import NEWEST
 from pybeansack.models import *
@@ -15,6 +16,11 @@ logger: logging.Logger = logging.getLogger(config.app.name)
 logger.setLevel(logging.INFO)
 
 ### BEANSACK RELATED FILTERING ####
+
+VALUE_EXISTS = { 
+    "$exists": True,
+    "$ne": None
+}
 
 FIELDS_WITH_CONTENT = {
     K_ID: 0, 
@@ -143,7 +149,7 @@ async def get_favicon():
     description="Get a list of all unique source ids available in the beansack."
 )
 async def get_sources() -> list[str]:
-    return db.beanstore.distinct("source")
+    return sorted(db.beanstore.distinct(K_SOURCE))
 
 @api_router.get(
     "/categories", 
@@ -151,7 +157,7 @@ async def get_sources() -> list[str]:
     description="Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."
 )
 async def get_categories() -> list[str]:
-    return db.beanstore.distinct("categories")
+    return sorted(db.beanstore.distinct(K_CATEGORIES, {K_CATEGORIES: VALUE_EXISTS}))
 
 @api_router.get(
     "/entities", 
@@ -159,7 +165,7 @@ async def get_categories() -> list[str]:
     description="Get a list of all unique named entities available in the beansack."
 )
 async def get_entities() -> list[str]:
-    return db.beanstore.distinct("entities")
+    return sorted(db.beanstore.distinct(K_ENTITIES, {K_ENTITIES: VALUE_EXISTS}))
 
 @api_router.get(
     "/regions", 
@@ -167,7 +173,7 @@ async def get_entities() -> list[str]:
     description="Get a list of all unique geographic regions available in the beansack."
 )
 async def get_regions() -> list[str]:
-    return db.beanstore.distinct("regions")
+    return sorted(db.beanstore.distinct(K_REGIONS, {K_REGIONS: VALUE_EXISTS}))
 
 @api_router.get(
     "/new/{kind}", 
