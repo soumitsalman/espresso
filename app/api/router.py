@@ -1,6 +1,8 @@
 import logging
+from fastapi.responses import FileResponse
 import uvicorn
 from fastapi import FastAPI, Path, Query
+from fastapi.staticfiles import StaticFiles
 from typing import Literal
 
 from pybeansack.mongosack import NEWEST
@@ -11,6 +13,8 @@ from app.shared.consts import *
 
 logger: logging.Logger = logging.getLogger(config.app.name)
 logger.setLevel(logging.INFO)
+
+### BEANSACK RELATED FILTERING ####
 
 FIELDS_WITH_CONTENT = {
     K_ID: 0, 
@@ -56,42 +60,125 @@ def create_filter(
     
     return filter
 
-Q = Query(..., min_length=3)
-SEARCH_TYPE = Query(default = "vector", description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search")   
-SIMILARITY_SCORE = Query(default=config.filters.bean.default_accuracy, description="Minimum cosine similarity score (only applicable to vector search)")
-URL = Query(..., min_length="10")
-QUERY_KIND = Query(default=None)
-CATEGORIES = Query(max_length=MAX_LIMIT, default=None)
-ENTITIES = Query(max_length=MAX_LIMIT, default=None)
-REGIONS = Query(max_length=MAX_LIMIT, default=None)
-SOURCES = Query(max_length=MAX_LIMIT, default=None)
-PUBLISHED_AFTER = Query(default=None)
-WITH_CONTENT = Query(default=False)
-GROUP_BY = Query(default=None, description="[Optional] Return one item per `source`, `author` or `cluster` (news and blogs about the same items are groped in one cluster).")
-OFFSET = Query(ge=0, default=0)
-LIMIT = Query(ge=MIN_LIMIT, le=MAX_LIMIT, default=config.filters.bean.default_limit)
+### QUERY PARAMETER DEFINITIONS ###
+
+Q = Query(
+    ..., 
+    min_length=3, 
+    description="The search query string. Minimum length is 3 characters."
+)
+SEARCH_TYPE = Query(
+    default="vector", 
+    description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search."
+)
+SIMILARITY_SCORE = Query(
+    default=config.filters.bean.default_accuracy, 
+    description="Minimum cosine similarity score (only applicable to vector search)."
+)
+URL = Query(
+    ..., 
+    min_length=10, 
+    description="The URL of the bean for which related beans are to be found. Minimum length is 10 characters."
+)
+KIND = Query(
+    default=None, 
+    description="Type of bean to query: 'news', 'blogs', or keep it unspecified for both."
+)
+CATEGORIES = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more categories to filter beans."
+)
+ENTITIES = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more named entities to filter beans."
+)
+REGIONS = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more regions to filter beans."
+)
+SOURCES = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more source ids to filter beans."
+)
+PUBLISHED_AFTER = Query(
+    default=None, 
+    description="Only return beans published on or after this datetime."
+)
+WITH_CONTENT = Query(
+    default=False, 
+    description="Whether to include only beans with content."
+)
+GROUP_BY = Query(
+    default=None, 
+    description="Return one item per `source`, `author` or `cluster` (news and blogs about the same content are grouped in one cluster)."
+)
+OFFSET = Query(
+    ge=0, 
+    default=0, 
+    description="Number of items to skip (for pagination)."
+)
+LIMIT = Query(
+    ge=MIN_LIMIT, 
+    le=MAX_LIMIT, 
+    default=config.filters.bean.default_limit, 
+    description="Maximum number of items to return."
+)
+
+### ROUTER AND ROUTE DEFINITIONS ###
 
 api_router = FastAPI(title=config.app.name, version="0.0.1", description=config.app.description)
+api_router.mount("/docs", StaticFiles(directory="docs"), "docs")
 
-@api_router.get("/sources", response_model=list[str]|None)
+@api_router.get("/favicon.ico")
+async def get_favicon():
+    return FileResponse("./images/favicon.ico")
+
+@api_router.get(
+    "/sources", 
+    response_model=list[str]|None,
+    description="Get a list of all unique source ids available in the beansack."
+)
 async def get_sources() -> list[str]:
     return db.beanstore.distinct("source")
 
-@api_router.get("/categories", response_model=list[str]|None)
+@api_router.get(
+    "/categories", 
+    response_model=list[str]|None,
+    description="Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."
+)
 async def get_categories() -> list[str]:
     return db.beanstore.distinct("categories")
 
-@api_router.get("/entities", response_model=list[str]|None)
+@api_router.get(
+    "/entities", 
+    response_model=list[str]|None,
+    description="Get a list of all unique named entities available in the beansack."
+)
 async def get_entities() -> list[str]:
     return db.beanstore.distinct("entities")
 
-@api_router.get("/regions", response_model=list[str]|None)
+@api_router.get(
+    "/regions", 
+    response_model=list[str]|None,
+    description="Get a list of all unique geographic regions available in the beansack."
+)
 async def get_regions() -> list[str]:
     return db.beanstore.distinct("regions")
 
-@api_router.get("/new/{kind}", response_model=list[Bean]|None)
+@api_router.get(
+    "/new/{kind}", 
+    response_model=list[Bean]|None,
+    response_model_by_alias=True,
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    description="Get a list of new beans (news or blogs) filtered by the provided parameters. The result is sorted by newest first."
+)
 async def get_beans(
-    kind: Literal["news", "blogs"] = Path(),
+    kind: Literal["news", "blogs"] = Path(description="Type of beans to retrieve: `news` or `blogs`."),
     categories: list[str] = CATEGORIES,
     entities: list[str] = ENTITIES,
     regions: list[str] = REGIONS,
@@ -106,12 +193,19 @@ async def get_beans(
     project = create_projection(with_content) 
     return db.query_beans(filter=filter, group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
 
-@api_router.get("/search", response_model=list[Bean]|None)
+@api_router.get(
+    "/search", 
+    response_model=list[Bean]|None,
+    response_model_by_alias=True,
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    description="Search beans using either semantic (vector) or keyword (bm25) search, with optional filters. The result is sorted by search score."
+)
 async def search_beans(
     q: str = Q,
     search_type: Literal["vector", "bm25"] = SEARCH_TYPE,    
     similarity_score: float = SIMILARITY_SCORE,
-    kind: Literal["news", "blogs", None] = QUERY_KIND,
+    kind: Literal["news", "blogs", None] = KIND,
     categories: list[str] = CATEGORIES,
     entities: list[str] = ENTITIES,
     regions: list[str] = REGIONS,
@@ -127,10 +221,17 @@ async def search_beans(
     if search_type == "vector": return db.vector_search_beans(embedding=embedder.embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
     if search_type == "bm25": return db.text_search_beans(query=q, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
 
-@api_router.get("/related", response_model=list[Bean]|None)
+@api_router.get(
+    "/related", 
+    response_model=list[Bean]|None,
+    response_model_by_alias=True,
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    description="Retrieve beans related to the bean identified by the given URL, with optional filters. The result is sorted by newest first."
+)
 async def get_related(
-    url: str = Query(),
-    kind: Literal["news", "blogs", None] = QUERY_KIND,
+    url: str = URL,
+    kind: Literal["news", "blogs", None] = KIND,
     categories: list[str] = CATEGORIES,
     entities: list[str] = ENTITIES,
     regions: list[str] = REGIONS,
