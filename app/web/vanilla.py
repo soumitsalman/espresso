@@ -60,11 +60,11 @@ def decode_jwt_token(token: str):
 
 @app.on_startup
 def initialize_server():    
-    if hasattr(config.oauth, 'google'):
-        oauth.register(
+    # if hasattr(config.oauth, 'google'):
+    oauth.register(
             "google",
-            client_id=config.oauth.google.client_id,
-            client_secret=config.oauth.google.client_secret,        
+            client_id=os.getenv('GOOGLE_CLIENT_ID'),
+            client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),        
             server_metadata_url=GOOGLE_SERVER_METADATA_URL,
             authorize_url=GOOGLE_AUTHORIZE_URL,
             access_token_url=GOOGLE_ACCESS_TOKEN_URL,
@@ -73,11 +73,11 @@ def initialize_server():
             client_kwargs=GOOGLE_OAUTH_SCOPE,
             user_agent=config.app.name
         )    
-    if hasattr(config.oauth, 'slack'):
-        oauth.register(
+    # if hasattr(config.oauth, 'slack'):
+    oauth.register(
         "slack",
-        client_id=config.oauth.slack.client_id,
-        client_secret=config.oauth.slack.client_secret,
+        client_id=os.getenv('SLACK_CLIENT_ID'),
+            client_secret=os.getenv('SLACK_CLIENT_SECRET'),  
         server_metadata_url=SLACK_SERVER_METADATA_URL,
         authorize_url=SLACK_AUTHORIZE_URL,
         access_token_url=SLACK_ACCESS_TOKEN_URL,
@@ -85,22 +85,22 @@ def initialize_server():
         client_kwargs=SLACK_OAUTH_SCOPE,
         user_agent=config.app.name
     )
-    if hasattr(config.oauth, 'linkedin'):
-        oauth.register(
+    # if hasattr(config.oauth, 'linkedin'):
+    oauth.register(
         "linkedin",
-        client_id=config.oauth.linkedin.client_id,
-        client_secret=config.oauth.linkedin.client_secret,
+        client_id=os.getenv('LINKEDIN_CLIENT_ID'),
+            client_secret=os.getenv('LINKEDIN_CLIENT_SECRET'),  
         authorize_url=LINKEDIN_AUTHORIZE_URL,
         access_token_url=LINKEDIN_ACCESS_TOKEN_URL,
         api_base_url=LINKEDIN_API_BASE_URL,
         client_kwargs=LINKEDIN_OAUTH_SCOPE,
         user_agent=config.app.name
     )
-    if hasattr(config.oauth, 'reddit'):
-        oauth.register(
+    # if hasattr(config.oauth, 'reddit'):
+    oauth.register(
         name="reddit",
-        client_id=config.oauth.reddit.client_id,
-        client_secret=config.oauth.reddit.client_secret,
+        client_id=os.getenv('REDDIT_CLIENT_ID'),
+        client_secret=os.getenv('REDDIT_CLIENT_SECRET'),  
         authorize_url=REDDIT_AUTHORIZE_URL,
         access_token_url=REDDIT_ACCESS_TOKEN_URL, 
         api_base_url=REDDIT_API_BASE_URL,
@@ -110,7 +110,7 @@ def initialize_server():
     
     logger.info("server_initialized")
 
-def validate_barista(barista_id: str) -> Page:
+def validate_page(barista_id: str) -> Page:
     barista_id = barista_id.lower()
     barista = beanops.db.get_barista(barista_id)
     if not barista:
@@ -245,10 +245,10 @@ async def home(request: Request):
     context = create_context("home", request)  
     await vanilla_pages.render_beans_for_home(context)
 
-@ui.page("/page/{barista_id}", title="Espresso")
+@ui.page("/pages/{page_id}", title="Espresso")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
-async def barista(request: Request, barista_id: Page = Depends(validate_barista, use_cache=True)): 
-    context = create_context(barista_id, request)
+async def barista(request: Request, page_id: Page = Depends(validate_page, use_cache=True)): 
+    context = create_context(page_id, request)
     if not context.has_read_permission:
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla_pages.render_beans_for_barista(context)
@@ -270,16 +270,16 @@ async def source_barista(
 async def search(request: Request, 
     q: str = None,
     acc: float = Query(ge=0, le=1, default=config.filters.bean.default_accuracy),
-    ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=config.filters.bean.default_window),
-    tag: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
-    source: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
+    ndays: int = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=config.filters.page.default_window),
+    tags: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None),
+    sources: list[str] | None = Query(max_length=beanops.MAX_LIMIT, default=None)
 ):
     context = create_context("search", request)
     context.query = q
     context.accuracy = acc
     context.last_ndays = ndays
-    context.tags = tag
-    context.sources = source
+    context.tags = tags
+    context.sources = sources
     await vanilla_pages.render_search(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
@@ -298,7 +298,7 @@ def run():
         storage_secret=os.getenv('STORAGE_SECRET'),
         dark=True, 
         favicon="./images/favicon.ico", 
-        port=config.host.port, 
+        port=8080, 
         show=False,
         uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
         proxy_headers=True

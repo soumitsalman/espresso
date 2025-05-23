@@ -18,7 +18,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         env.load_env("./app/api/mcp.toml")
         from app.api import mcprouter
         mcprouter.run()
-    elif mode == "vanilla":
+    elif mode == "web":
         env.load_env("./app/web/vanilla.toml")
         from app.web import vanilla
         vanilla.run()  

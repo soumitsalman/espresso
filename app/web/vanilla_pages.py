@@ -7,16 +7,15 @@ from app.web.renderer import *
 from app.web.custom_ui import *
 from nicegui import ui
 
+from pybeansack.mongosack import TRENDING, LATEST
 
-HOME_PAGE_NDAYS = None
-KIND_LABELS = {NEWS: "News", POST: "Posts", BLOG: "Blogs"}
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
 async def render_beans_for_home(context: Context):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_home(context.tags, context.kind, None, HOME_PAGE_NDAYS, context.sort_by, start, limit)
+        return beanops.get_beans_for_home(context.kind, context.tags, None, config.filters.page.default_window, context.sort_by, start, limit)
     
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
@@ -27,7 +26,7 @@ async def render_beans_for_home(context: Context):
     render_page_contents(
         context, 
         retrieve_beans,
-        # get_filter_items_func=lambda: beanops.search_tags(query=None, accuracy=None, tags=None, kinds=None, sources=None, last_ndays=HOME_PAGE_NDAYS, start=0, limit=MAX_FILTER_TAGS),
+        get_filter_tags=lambda: beanops.search_filter_tags(query=None, accuracy=None, tags=None, sources=None, last_ndays=config.filters.page.default_window, start=0, limit=config.filters.page.max_tags),
         apply_filter_func=apply_filter
     )   
 
@@ -53,40 +52,32 @@ async def render_beans_for_home(context: Context):
 #     render_footer()
 
 async def render_beans_for_barista(context: Context):  
-    # NOTE: experimental feature - using topic filter if the barista query is source based
-    use_topic_filter = context.page.query_sources and not context.page.query_embedding
-
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_page(context.page, context.tags, context.kind, context.topic, context.sort_by, start, limit)
+        return beanops.get_beans_for_page(context.page, context.kind, context.tags, context.sort_by, start, limit)
         
     def get_filters_items():
-        if use_topic_filter: return {b.id: b.title for b in beanops.get_channels(config.filters.page.categories, beanops.BARISTA_MINIMAL_FIELDS)}
-        # else: return beanops.get_barista_tags(context.page, 0, MAX_FILTER_TAGS) 
+        if context.page.query_embedding: return beanops.get_filter_tags_for_page(context.page, 0, config.filters.max_tags)
+        else: return config.filters.page.categories
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
-        if filter_item is not MAINTAIN_VALUE:
-            if use_topic_filter: context.topic = filter_item
-            else: context.tags = filter_item
+        if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
             
-    render_barista_banner(context)
+    render_page_banner(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_beans_for_source(context: Context):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_beans_for_source(context.sources, context.tags, context.kind, context.topic, None, context.sort_by, start, limit)
-        
-    get_filters_items = lambda: {b.id: b.title for b in beanops.get_channels(config.filters.page.categories, beanops.BARISTA_MINIMAL_FIELDS)}
+        return beanops.get_beans_for_source(context.sources, context.kind, context.tags, None, context.sort_by, start, limit)
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
-        if filter_item is not MAINTAIN_VALUE:
-            context.topic = filter_item
+        if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
     
     render_banner(context.sources)
-    render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
+    render_page_contents(context, retrieve_beans, lambda: config.filters.page.categories, apply_filter)
 
 # async def render_custom_page(context: Context): 
 #     initial_tags = context.tags
@@ -145,10 +136,10 @@ async def render_beans_for_source(context: Context):
 def render_page_contents(
     context: Context, 
     retrieve_beans_func: Callable, 
-    get_filter_items_func: Callable = None,
+    get_filter_tags: Callable = None,
     apply_filter_func: Callable = None
 ):
-    context.kind, context.sort_by = config.filters.bean.default_kind, config.filters.bean.default_sort_by # starting default values
+    context.kind, context.sort_by = config.filters.page.default_kind, SORT_BY_OPTIONS[config.filters.page.default_sort_by] # starting default values
 
     @ui.refreshable
     def render_beans_panel(ctx: Context):     
@@ -172,19 +163,14 @@ def render_page_contents(
     render_header(context)  
     # kind and sort by filter panel
     with ui.row(wrap=False, align_items="stretch").classes("w-full"):
-        ui.toggle(
-            options=KIND_LABELS,
-            value=context.kind,
-            on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
-        ui.toggle(
-            options=list(beanops.SORT_BY.keys()), 
-            value=context.sort_by, 
-            on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
+        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
+        render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
 
     # topic filter panel
-    if get_filter_items_func:
-        render_filter_items(
-            load_items=get_filter_items_func, 
+    if get_filter_tags:
+        render_tag_filters(
+            context,
+            load_items=get_filter_tags, 
             on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
         ).classes("w-full")
 
@@ -220,11 +206,8 @@ async def render_search(context: Context):
     render_search_controls(context).classes("w-full")
     
     if context.query or context.tags:
-        ui.toggle(
-            options=KIND_LABELS, 
-            value=context.kind, 
-            on_change=lambda e: apply_filter(filter_kind=e.sender.value)
-        ).props(TOGGLE_OPTIONS_PROPS+" clearable")  
+        render_kind_filters(lambda e: apply_filter(filter_kind=e.sender.value))
+         
         # render_filter_items(
         #     load_items=lambda: beanops.search_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, kinds=context.kind, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
         #     on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
@@ -277,3 +260,19 @@ async def render_doc(user: User, doc_id: str):
     with open(f"./docs/{doc_id}", 'r') as file:
         ui.markdown(file.read()).classes("w-full md:w-2/3 lg:w-1/2  self-center")
     render_footer()
+
+KIND_OPTIONS = {NEWS: "News", BLOG: "Blogs", POST: "Posts"}
+def render_kind_filters(context: Context, on_change):
+    return ui.toggle(
+        options={k:v for k,v in KIND_OPTIONS.items() if k in config.filters.page.kinds}, 
+        value=config.filters.page.default_kind, 
+        on_change=lambda e: on_change(e.sender.value)
+    ).props(TOGGLE_OPTIONS_PROPS+" clearable") 
+
+SORT_BY_OPTIONS = {"Latest": LATEST, "Trending": TRENDING}
+def render_sort_by_filters(context: Context, on_change):
+    return ui.toggle(
+        options=list(SORT_BY_OPTIONS.keys()), 
+        value=config.filters.page.default_sort_by, 
+        on_change=lambda e: on_change(SORT_BY_OPTIONS[e.sender.value])
+    ).props(TOGGLE_OPTIONS_PROPS)

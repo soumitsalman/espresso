@@ -1,30 +1,30 @@
 [filters]
 [filters.bean]
 default_accuracy = 0.68
-default_window = 7
-default_limit = 10
-default_kind = "news"
-default_sort_by = "Trending"
 max_tags = 5
 max_related = 5
 body = "header-only"
 
 [filters.page]
 categories = [
-    "artificial-intelligence",
-    "business---finance",
-    "cryptocurrency---blockchain",
-    "cybersecurity",
-    "environment---clean-energy",
-    "gadgets---iot",
-    "government---politics",
-    "science---mathematics",
-    "software-engineering",
-    "startups---vcs"
+    "Artificial Intelligence",
+    "Aviation",
+    "Business",
+    "Crytocurrency",
+    "Cybersecurity",
+    "Environment",
+    "Gadgets",
+    "Government",
+    "Software Engineering",
+    "Startups"
 ]
 max_tags = 7
 max_beans = 5
-max_pages = 10
+kinds = ["news", "blog"]
+default_window = 7
+default_limit = 10
+default_kind = "news"
+default_sort_by = "Latest"
 
 [rendering]
 [rendering.bean]

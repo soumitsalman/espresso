@@ -1,9 +1,8 @@
 import logging
-import uvicorn
-from fastapi import FastAPI, Path, Query
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from typing import Literal
+from datetime import datetime
+
+from fastmcp import FastMCP
 from icecream import ic
 
 from pybeansack.mongosack import NEWEST
@@ -16,7 +15,6 @@ logger: logging.Logger = logging.getLogger(config.app.name)
 logger.setLevel(logging.INFO)
 
 ### BEANSACK RELATED FILTERING ####
-
 VALUE_EXISTS = { 
     "$exists": True,
     "$ne": None
@@ -144,63 +142,41 @@ LIMIT = Query(
     description="Maximum number of items to return."
 )
 
-### ROUTER AND ROUTE DEFINITIONS ###
+### MCP SERVER AND ROUTE DEFINITIONS ###
 
-api_router = FastAPI(title=config.app.name, version="0.0.1", description=config.app.description)
-api_router.mount("/docs", StaticFiles(directory="docs"), "docs")
-
-@api_router.get("/favicon.ico")
-async def get_favicon():
-    return FileResponse("./images/favicon.ico")
-
-@api_router.get(
-    "/sources", 
-    response_model=list[str]|None,
-    description="Get a list of all unique source ids available in the beansack."
+mcp_router = FastMCP(
+    title=config.app.name,
+    version="0.0.1", 
+    description=config.app.description,
+    auth_header="X-API-Key"  # Using X-API-Key for authentication
 )
-async def get_sources() -> list[str]:
-    return sorted(db.beanstore.distinct(K_SOURCE))
 
-@api_router.get(
-    "/categories", 
-    response_model=list[str]|None,
-    description="Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."
-)
-async def get_categories() -> list[str]:
-    return sorted(db.beanstore.distinct(K_CATEGORIES, {K_CATEGORIES: VALUE_EXISTS}))
+@mcp_router.mcp_get("/sources")
+async def get_sources() -> MCPResponse[list[str]]:
+    """Get a list of all unique source ids available in the beansack."""
+    return MCPResponse(data=sorted(db.beanstore.distinct(K_SOURCE)))
 
-@api_router.get(
-    "/entities", 
-    response_model=list[str]|None,
-    description="Get a list of all unique named entities available in the beansack."
-)
-async def get_entities() -> list[str]:
-    return sorted(db.beanstore.distinct(K_ENTITIES, {K_ENTITIES: VALUE_EXISTS}))
+@mcp_router.mcp_get("/categories")
+async def get_categories() -> MCPResponse[list[str]]:
+    """Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."""
+    return MCPResponse(data=sorted(db.beanstore.distinct(K_CATEGORIES, {K_CATEGORIES: VALUE_EXISTS})))
 
-@api_router.get(
-    "/regions", 
-    response_model=list[str]|None,
-    description="Get a list of all unique geographic regions available in beansack."
-)
-async def get_regions() -> list[str]:
-    return sorted(db.beanstore.distinct(K_REGIONS, {K_REGIONS: VALUE_EXISTS}))
+@mcp_router.mcp_get("/entities")
+async def get_entities() -> MCPResponse[list[str]]:
+    """Get a list of all unique named entities available in the beansack."""
+    return MCPResponse(data=sorted(db.beanstore.distinct(K_ENTITIES, {K_ENTITIES: VALUE_EXISTS})))
 
-@api_router.get(
-    "/authors", 
-    response_model=list[str]|None,
-    description="Get a list of all news article and blog authors whose contents available in beansack."
-)
-async def get_authors() -> list[str]:
-    return sorted(db.beanstore.distinct(K_AUTHOR, {K_AUTHOR: VALUE_EXISTS}))
+@mcp_router.mcp_get("/regions")
+async def get_regions() -> MCPResponse[list[str]]:
+    """Get a list of all unique geographic regions available in beansack."""
+    return MCPResponse(data=sorted(db.beanstore.distinct(K_REGIONS, {K_REGIONS: VALUE_EXISTS})))
 
-@api_router.get(
-    "/new/{kind}", 
-    response_model=list[Bean]|None,
-    response_model_by_alias=True,
-    response_model_exclude_none=True,
-    response_model_exclude_unset=True,
-    description="Get a list of new beans (news or blogs) filtered by the provided parameters. The result is sorted by newest first."
-)
+@mcp_router.mcp_get("/authors")
+async def get_authors() -> MCPResponse[list[str]]:
+    """Get a list of all news article and blog authors whose contents available in beansack."""
+    return MCPResponse(data=sorted(db.beanstore.distinct(K_AUTHOR, {K_AUTHOR: VALUE_EXISTS})))
+
+@mcp_router.mcp_get("/new/{kind}")
 async def get_beans(
     kind: Literal["news", "blogs"] = KIND_PATH,
     categories: list[str] = CATEGORIES,
@@ -213,19 +189,14 @@ async def get_beans(
     group_by: Literal["cluster_id", "source", "author", None] = GROUP_BY,
     offset: int = OFFSET,
     limit: int = LIMIT
-) -> list[Bean]:
+) -> MCPResponse[list[Bean]]:
+    """Get a list of new beans (news or blogs) filtered by the provided parameters. The result is sorted by newest first."""
     filter = create_filter(kind, categories, entities, regions, sources, authors, published_after, with_content)
     project = create_projection(with_content) 
-    return db.query_beans(filter=filter, group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
+    data = db.query_beans(filter=filter, group_by=group_by, sort_by=NEWEST, skip=offset, limit=limit, project=project)
+    return MCPResponse(data=data)
 
-@api_router.get(
-    "/search/{kind}", 
-    response_model=list[Bean]|None,
-    response_model_by_alias=True,
-    response_model_exclude_none=True,
-    response_model_exclude_unset=True,
-    description="Search beans using either semantic (vector) or keyword (bm25) search, with optional filters. The result is sorted by search score."
-)
+@mcp_router.mcp_get("/search/{kind}")
 async def search_beans(
     kind: Literal["news", "blogs"] = KIND_PATH,
     q: str = Q,
@@ -241,20 +212,32 @@ async def search_beans(
     group_by: Literal["cluster_id", "source", "author", None] = GROUP_BY,
     offset: int = OFFSET,
     limit: int = LIMIT
-) -> list[Bean]:
+) -> MCPResponse[list[Bean]]:
+    """Search beans using either semantic (vector) or keyword (bm25) search, with optional filters. The result is sorted by search score."""
     filter = create_filter(kind, categories, entities, regions, sources, authors, published_after, with_content)
     project = create_projection(with_content) 
-    if search_type == "vector": return db.vector_search_beans(embedding=embedder.embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
-    if search_type == "bm25": return db.text_search_beans(query=q, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
+    if search_type == "vector":
+        data = db.vector_search_beans(
+            embedding=embedder.embed_query(q), 
+            similarity_score=similarity_score, 
+            filter=filter, 
+            group_by=group_by, 
+            skip=offset, 
+            limit=limit, 
+            project=project
+        )
+    else:
+        data = db.text_search_beans(
+            query=q, 
+            filter=filter, 
+            group_by=group_by, 
+            skip=offset, 
+            limit=limit, 
+            project=project
+        )
+    return MCPResponse(data=data)
 
-@api_router.get(
-    "/related", 
-    response_model=list[Bean]|None,
-    response_model_by_alias=True,
-    response_model_exclude_none=True,
-    response_model_exclude_unset=True,
-    description="Retrieve beans related to the bean identified by the given URL, with optional filters. The result is sorted by newest first."
-)
+@mcp_router.mcp_get("/related")
 async def get_related(
     url: str = URL,
     kind: Literal["news", "blogs", None] = KIND,
@@ -266,14 +249,12 @@ async def get_related(
     published_after: datetime = PUBLISHED_AFTER,
     with_content: bool = WITH_CONTENT,
     limit: int = LIMIT
-) -> list[Bean]:
-    """
-    Retrieves the related beans to the given bean.
-    """  
+) -> MCPResponse[list[Bean]]:
+    """Retrieve beans related to the bean identified by the given URL, with optional filters. The result is sorted by newest first."""
     filter = create_filter(kind, categories, entities, regions, sources, authors, published_after, with_content)
     project = create_projection(with_content) 
-    return db.query_related_beans(url, filter=filter, sort_by=NEWEST, limit=limit, project = project)
+    data = db.query_related_beans(url, filter=filter, sort_by=NEWEST, limit=limit, project=project)
+    return MCPResponse(data=data)
 
 def run():
-    uvicorn.run(api_router, host="0.0.0.0", port=8080)
-
+    mcp_router.run(host="0.0.0.0", port=8081)  # Using a different port from FastAPI server

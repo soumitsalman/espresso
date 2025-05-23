@@ -1,5 +1,6 @@
 optimum[onnxruntime]
 fastapi[standard]
+fastmcp
 slack-bolt
 retry
 humanize
