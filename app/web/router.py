@@ -175,7 +175,7 @@ def process_oauth_result(result: dict):
 @app.get("/oauth/google/login")
 async def google_oauth_login(request: Request):
     log("oauth_login", user_id=get_unauthenticated_user(request), provider="google")
-    return await oauth.google.authorize_redirect(request, config.app.base_url + "/oauth/google/redirect")
+    return await oauth.google.authorize_redirect(request, os.getenv('BASE_URL') + "/oauth/google/redirect")
 
 @app.get("/oauth/google/redirect")
 async def google_oauth_redirect(request: Request):
@@ -189,7 +189,7 @@ async def google_oauth_redirect(request: Request):
 @app.get("/oauth/slack/login")
 async def slack_oauth_login(request: Request):
     log("oauth_login", user_id=get_unauthenticated_user(request), provider="slack")
-    return await oauth.slack.authorize_redirect(request, config.app.base_url + "/oauth/slack/redirect")
+    return await oauth.slack.authorize_redirect(request, os.getenv('BASE_URL') + "/oauth/slack/redirect")
 
 @app.get("/oauth/slack/redirect")
 async def slack_oauth_redirect(request: Request):
@@ -203,7 +203,7 @@ async def slack_oauth_redirect(request: Request):
 @app.get("/oauth/linkedin/login")
 async def linkedin_oauth_login(request: Request):
     log("oauth_login", user_id=get_unauthenticated_user(request), provider="linkedin")
-    return await oauth.linkedin.authorize_redirect(request, config.app.base_url + "/oauth/linkedin/redirect")
+    return await oauth.linkedin.authorize_redirect(request, os.getenv('BASE_URL') + "/oauth/linkedin/redirect")
 
 @app.get("/oauth/linkedin/redirect")
 async def linkedin_oauth_redirect(request: Request):

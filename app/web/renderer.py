@@ -259,7 +259,7 @@ def render_barista_search_bar(search_func: Callable):
         .props("dense standout clearable clear-icon=close")
     return search_input
 
-render_page_names = lambda pages: [ui.item(item.title).props(f"clickable standout href={create_page_target("/pages", item.id)}").classes("bg-dark rounded-borders") for item in pages]
+render_page_names = lambda pages: [ui.item(item.title).props(f"clickable standout href='/pages/{item.id}'").classes("bg-dark rounded-borders") for item in pages]
 
 def render_page_names_as_list(context: Context, baristas: list[Page]):
     with ui.list() as holder:
