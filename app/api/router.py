@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from typing import Literal
 from icecream import ic
 
-from pybeansack.mongosack import NEWEST
+from pybeansack.mongosack import *
 from pybeansack.models import *
 from app.shared.env import *
 from app.shared.utils import *
@@ -16,11 +16,6 @@ logger: logging.Logger = logging.getLogger(config.app.name)
 logger.setLevel(logging.INFO)
 
 ### BEANSACK RELATED FILTERING ####
-
-VALUE_EXISTS = { 
-    "$exists": True,
-    "$ne": None
-}
 
 FIELDS_WITH_CONTENT = {
     K_ID: 0, 
@@ -82,7 +77,7 @@ SEARCH_TYPE = Query(
     default="vector", 
     description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search."
 )
-SIMILARITY_SCORE = Query(
+ACCURACY = Query(
     default=config.filters.bean.default_accuracy, 
     description="Minimum cosine similarity score (only applicable to vector search)."
 )
@@ -230,7 +225,7 @@ async def search_beans(
     kind: Literal["news", "blogs"] = KIND_PATH,
     q: str = Q,
     search_type: Literal["vector", "bm25"] = SEARCH_TYPE,    
-    similarity_score: float = SIMILARITY_SCORE,
+    acc: float = ACCURACY,
     categories: list[str] = CATEGORIES,
     entities: list[str] = ENTITIES,
     regions: list[str] = REGIONS,
@@ -244,7 +239,7 @@ async def search_beans(
 ) -> list[Bean]:
     filter = create_filter(kind, categories, entities, regions, sources, authors, published_after, with_content)
     project = create_projection(with_content) 
-    if search_type == "vector": return db.vector_search_beans(embedding=embedder.embed_query(q), similarity_score=similarity_score, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
+    if search_type == "vector": return db.vector_search_beans(embedding=embedder.embed_query(q), similarity_score=acc, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
     if search_type == "bm25": return db.text_search_beans(query=q, filter=filter, group_by=group_by, skip=offset, limit=limit, project=project)
 
 @api_router.get(

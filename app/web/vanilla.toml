@@ -1,9 +1,8 @@
 [filters]
 [filters.bean]
-default_accuracy = 0.68
 max_tags = 5
 max_related = 5
-body = "header-only"
+body = "whole"
 
 [filters.page]
 categories = [
@@ -21,6 +20,7 @@ categories = [
 max_tags = 7
 max_beans = 5
 kinds = ["news", "blog"]
+default_accuracy = 0.68
 default_window = 7
 default_limit = 10
 default_kind = "news"

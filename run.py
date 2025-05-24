@@ -20,8 +20,8 @@ if __name__ in {"__main__", "__mp_main__"}:
         mcprouter.run()
     elif mode == "web":
         env.load_env("./app/web/vanilla.toml")
-        from app.web import vanilla
-        vanilla.run()  
+        from app.web import router
+        router.run()  
     # else:
     #     from app.web import vanilla_router
     #     vanilla_router.run()

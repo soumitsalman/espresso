@@ -8,7 +8,7 @@ from app.shared.env import *
 class Context:
     user: User|str|None = None
     page: Page|str = None
-    
+    page_type: str = None
     kind: str|None = None
     sort_by: str|None = None
     query: str|None = None
@@ -18,9 +18,10 @@ class Context:
     accuracy: float|None = None
     last_ndays: int|None = None
 
-    def __init__(self, page: Page|str, user: User|str):
+    def __init__(self, page: Page|str, user: User|str, page_type: str = None):
         self.page = page
         self.user = user
+        self.page_type = "stored_page" if isinstance(page, Page) else page_type
         
     @property
     def user_id(self):
@@ -77,6 +78,7 @@ class Context:
         extra = {
             "user_id": self.user_id,
             "page_id": self.page_id,
+            "page_type": f"custom_page:{self.page_type}" if self.is_stored_page else "saved_page",
             "tags": str(self.tags) if self.tags else None,
             "kinds": str(self.kind) if self.kind else None,
             "sort_by": self.sort_by,

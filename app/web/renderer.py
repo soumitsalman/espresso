@@ -46,7 +46,8 @@ TWITTER_ICON = "img:https://www.x.com/favicon.ico"
 WHATSAPP_ICON = "img:/images/whatsapp.png"
 ESPRESSO_ICON = "img:/images/favicon.ico"
 
-ELLISPSIS_LENGTH = 30
+MAX_WORD_LENGTH = 30
+MAX_SUMMARY_LENGTH = 120
 
 LOGIN_OPTIONS = [
     {
@@ -68,9 +69,11 @@ LOGIN_OPTIONS = [
 
 inflect_engine = inflect.engine()
 
-ellipsis_text = lambda text: text[:ELLISPSIS_LENGTH]+'...' if len(text) > ELLISPSIS_LENGTH else text
+ellipsis_word = lambda text: text[:MAX_WORD_LENGTH]+'...' if len(text) > MAX_WORD_LENGTH else text
 rounded_number = lambda counter: str(counter) if counter < beanops.MAX_LIMIT else str(beanops.MAX_LIMIT-1)+'+'
 rounded_number_with_max = lambda counter, top: str(counter) if counter <= top else str(top)+'+'
+
+now = datetime.now
 
 def create_navigation_target(base_url: str, **kwargs) -> str:
     if not kwargs: return base_url
@@ -81,10 +84,7 @@ def create_navigation_target(base_url: str, **kwargs) -> str:
         else: params.append((key, value))
     return base_url+"?"+urlencode(params)
 
-def create_barista_target(barista_id = None, source = None, tag = None):
-    if barista_id: return f"/baristas/{barista_id}"
-    if source: return create_navigation_target("/baristas", source=source)
-    if tag: return create_navigation_target("/baristas", tag=tag)
+create_page_target = lambda base_url, page_id, **kwargs: create_navigation_target(f"{base_url}/{page_id.replace('/', '%2F')}", **kwargs)
 
 def create_share_func(context: Context, bean: Bean, target: str):
     return lambda: [
@@ -93,11 +93,11 @@ def create_share_func(context: Context, bean: Bean, target: str):
     ]
 
 navigate_to = lambda base_url, **kwargs: ui.navigate.to(create_navigation_target(base_url, **kwargs))
-navigate_to_barista = lambda barista_id = None, source = None, tag = None: ui.navigate.to(create_barista_target(barista_id, source, tag))
-navigate_to_source = lambda source: ui.navigate.to(create_navigation_target("/sources", feed=source))
+navigate_to_stored_page = lambda barista_id: ui.navigate.to(create_page_target("/pages", barista_id))
+navigate_to_source = lambda source: ui.navigate.to(create_page_target("/sources", source))
 navigate_to_search = lambda **kwargs: ui.navigate.to(create_navigation_target("/search", **kwargs)) if kwargs else None
 
-render_banner = lambda text: ui.label( inflect_engine.join(text) if isinstance(text, list) else text).classes("text-h6")
+render_banner = lambda text: ui.label(text).classes("text-h6")
 render_thick_separator = lambda: ui.separator().style("height: 5px;").classes("w-full")
 render_share_button = lambda context, bean, target, icon: ui.button(on_click=create_share_func(context, bean, target), icon=icon, color="transparent").props("flat")
 
@@ -159,7 +159,7 @@ def render_user(user: User):
             ui.separator()
                         
             if beanops.db.get_barista(user.email):
-                with ui.menu_item(on_click=lambda: navigate_to_barista(user.email)):
+                with ui.menu_item(on_click=lambda: navigate_to_stored_page(user.email)):
                     ui.icon("bookmarks", size="md").classes("q-mr-md")
                     with ui.label("Bookmarks"):
                         ui.label("/baristas/"+user.email).classes("text-caption")
@@ -184,7 +184,7 @@ def render_navigation_panel(context: Context):
         context.log("search_barista", query=text)
         baristas = beanops.search_pages(text)
         with search_results_panel:
-            if baristas: render_barista_items(baristas)
+            if baristas: render_page_names(baristas)
             else: ui.label(NOTHING_FOUND)
 
     with ui.left_drawer(bordered=False).props("breakpoint=600 show-if-above").classes("q-pt-xs q-px-sm") as navigation_panel: 
@@ -199,11 +199,11 @@ def render_navigation_panel(context: Context):
                 with ui.tab_panels(tabs).props("vertical"):
                     with ui.tab_panel("search").classes(STRETCH_FIT):
                         render_barista_search_bar(search_and_render_barista)
-                        search_results_panel = render_page_names(context, None)
+                        search_results_panel = render_page_names_as_list(context, None)
 
                     for item in navigation_items:
                         with ui.tab_panel(item['label']).classes(STRETCH_FIT):
-                            render_page_names(context, item['items']).classes(STRETCH_FIT)
+                            render_page_names_as_list(context, item['items']).classes(STRETCH_FIT)
 
         if navigation_items: tabs.set_value(navigation_items[0]['label'])
         
@@ -259,31 +259,37 @@ def render_barista_search_bar(search_func: Callable):
         .props("dense standout clearable clear-icon=close")
     return search_input
 
-render_barista_items = lambda baristas: [ui.item(item.title).props(f"clickable standout href={create_barista_target(item.id)}").classes("bg-dark rounded-borders") for item in baristas]
+render_page_names = lambda pages: [ui.item(item.title).props(f"clickable standout href={create_page_target("/pages", item.id)}").classes("bg-dark rounded-borders") for item in pages]
 
-def render_page_names(context: Context, baristas: list[Page]):
+def render_page_names_as_list(context: Context, baristas: list[Page]):
     with ui.list() as holder:
-        if baristas: render_barista_items(baristas)
+        if baristas: render_page_names(baristas)
     return holder 
 
 def render_page_banner(context: Context):
-    with render_banner(context.page.title) as banner:
-        with ui.button(icon="more_vert").props("flat").classes("q-ml-md"):
-            with ui.menu():  
-                # with ui.item("Public"):
-                #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
-                with ui.item("Follow"):
-                    ui.switch(value=context.is_following, on_change=lambda: toggle_follow(context)).props("flat checked-icon=playlist_add_check").tooltip(tooltip_msg(context, "Follow")).set_enabled(context.has_follow_permission)
-                with ui.menu_item("Pour a Filtered Cup", on_click=lambda: ui.notify("Coming soon")):
-                    ui.avatar(icon="filter_list", color="transparent") 
-    return banner
+    if context.page_type == "stored_page": banner_text = f"☕ {context.page.title}"
+    elif context.page_type == K_CATEGORIES: banner_text = f"🏷️ {context.page}"
+    elif context.page_type == K_REGIONS: banner_text = f"📍 {context.page}"
+    else: banner_text = context.page
 
-def render_tag_filters(context: Context, load_items: Callable, on_selection_changed: Callable):
+    with render_banner(banner_text) as view:
+        if context.is_stored_page:
+            with ui.button(icon="more_vert").props("flat").classes("q-ml-md"):
+                with ui.menu():  
+                    # with ui.item("Public"):
+                    #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
+                    with ui.item("Follow"):
+                        ui.switch(value=context.is_following, on_change=lambda: toggle_follow(context)).props("flat checked-icon=playlist_add_check").tooltip(tooltip_msg(context, "Follow")).set_enabled(context.has_follow_permission)
+                    with ui.menu_item("Pour a Filtered Cup", on_click=lambda: ui.notify("Coming soon")):
+                        ui.avatar(icon="filter_list", color="transparent") 
+    return view
+
+def render_filter_tags(context: Context, load_items: Callable, on_selection_changed: Callable):
     async def render():
         items = await run.io_bound(load_items)
         if not items: return
         with holder:
-            with ui.tabs(on_change=lambda e: on_selection_changed(e.sender.value)) \
+            with ui.tabs(on_change=lambda e: on_selection_changed([e.sender.value])) \
                 .props("dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent") as filter_panel:                
                 if isinstance(items, list): [ui.tab(item).classes("rounded-full bg-dark q-mr-sm") for item in items]
                 elif isinstance(items, dict): [ui.tab(k, label=v).classes("rounded-full bg-dark q-mr-sm") for k, v in items.items()]
@@ -293,14 +299,14 @@ def render_tag_filters(context: Context, load_items: Callable, on_selection_chan
     background_tasks.create_lazy(render(), name=f"filter-items-{now()}")
     return holder
 
-def render_similar_channels(context: Context):
+def render_similar_pages(context: Context):
     related_baristas = beanops.get_pages(context.page.related) \
         if (context.is_stored_page and context.page.related) \
             else beanops.get_page_suggestions(context)
     with ui.column(align_items="stretch").classes("w-full"):
         render_thick_separator()
         with ui.row().classes("w-full gap-1"):
-            render_barista_items(related_baristas)
+            render_page_names(related_baristas)
 
 def render_beans(context: Context, load_beans: Callable, container: ui.element = None, item_classes: str = STRETCH_FIT):
     async def render():
@@ -378,7 +384,7 @@ def render_bean_with_related(context: Context, bean: Bean):
 
 # render_bean = lambda user, bean, expandable: render_expandable_bean(user, bean) if expandable else render_whole_bean(user, bean)
 def render_expandable_bean(context: Context, bean: Bean, expanded: bool = False, on_expanded = None):
-    body_loaded = False
+    body_loaded = expanded
     async def load_body():
         nonlocal body_loaded
         if not expansion.value: return
@@ -408,16 +414,8 @@ def render_whole_bean(context: Context, bean: Bean):
     return view 
 
 def render_bean(context, bean, expanded: bool = False, on_expanded = None):
-    # if not hasattr(config.filters.bean, 'body') or config.filters.bean.body == "skip": return render_header_only_bean(context, bean)
     if config.rendering.bean.body == "whole": return render_whole_bean(context, bean)
     return render_expandable_bean(context, bean, expanded, on_expanded)
-
-# def render_header_only_bean(context: Context, bean: Bean):
-#     with ui.column(align_items="stretch") as view:
-#         render_bean_header(context, bean).classes(add="q-mb-sm")
-#         if bean.tags: render_bean_tags(context, bean)
-#         render_bean_actions(context, bean).classes(STRETCH_FIT)
-#     return view 
 
 def render_bean_header(context: Context, bean: Bean):
     with ui.row(wrap=False, align_items="stretch").classes("w-full bean-header") as view:            
@@ -425,17 +423,13 @@ def render_bean_header(context: Context, bean: Bean):
             ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
             ui.label(bean.title).classes("bean-title")    
-            with ui.row(align_items="center").classes("w-full gap-3"):
-                ui.label(naturalday(bean.created or bean.updated))
-                if bean.categories: ui.label(f"🏷️ {bean.categories[0]}")           
-                if bean.regions: ui.label(f"📍 {bean.regions[0]}")
-            with ui.row(align_items="center").classes("w-full gap-3") :
-                render_bean_stats(context, bean).classes("text-caption") 
-                render_bean_source(context, bean).classes("text-caption") 
+            render_bean_attributes(context, bean).classes('text-caption')
+            render_bean_stats(context, bean).classes("text-caption") 
     return view
 
 def render_bean_stats(context: Context, bean: Bean): 
-    with ui.row(align_items="center").classes("w-full gap-3") as view:     
+    with ui.row(align_items="center").classes("w-full gap-3") as view:   
+        render_bean_source(context, bean)  
         if bean.comments: ui.label(f"💬 {bean.comments}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: ui.label(f"👍 {bean.likes}").tooltip(f"{bean.likes} likes across various social media sources")
         if bean.shares and bean.shares > 1: ui.label(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
@@ -443,15 +437,22 @@ def render_bean_stats(context: Context, bean: Bean):
         # , create_navigation_target("/related", url=bean.url)
     return view
 
+def render_bean_attributes(context: Context, bean: Bean):
+    with ui.row(align_items="center").classes("w-full gap-3") as view:
+        ui.label(naturalday(bean.created))
+        if bean.categories: ui.markdown(f"🏷️ [{bean.categories[0]}]({create_page_target('/categories', bean.categories[0])})")           
+        if bean.regions: ui.markdown(f"📍 [{bean.regions[0]}]({create_page_target('/regions', bean.regions[0])})")
+    return view
+
 def render_bean_body(context: Context, bean: Bean):
     with ui.column(align_items="stretch").classes("w-full m-0 p-0") as view:
         if bean.entities: render_bean_entities(context, bean)
-        if bean.summary: ui.markdown(bean.summary).classes("bean-body").tooltip("AI generated summary")
+        if bean.summary: ui.markdown(bean.summary).classes("bean-body truncate-multiline")
         render_bean_actions(context, bean).classes(STRETCH_FIT)
     return view
 
 def render_bean_entities(context: Context, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_navigation_target("/search", tag=tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+    make_tag = lambda tag: ui.link(tag, target=create_page_target("/entities", tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
         [make_tag(tag) for tag in random.sample(bean.entities, min(config.filters.bean.max_tags, len(bean.entities)))]
     return view
@@ -459,7 +460,7 @@ def render_bean_entities(context: Context, bean: Bean):
 def render_bean_source(context: Context, bean: Bean):
     with ui.row(wrap=False, align_items="center").classes("gap-2") as view:        
         ui.icon("img:"+ favicon(bean))
-        ui.link(bean.site_name or bean.source, bean.url, new_tab=True).classes("ellipsis-30").on("click", lambda : context.log("opened", url=bean.url))
+        ui.link(bean.site_name or bean.source, bean.url, new_tab=True).classes("truncate").on("click", lambda : context.log("opened", url=bean.url))
     return view
 
 def render_bean_actions(context: Context, bean: Bean): 
