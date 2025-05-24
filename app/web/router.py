@@ -344,12 +344,12 @@ async def register_user(request: Request, userinfo: dict = Depends(validate_regi
     
 
 def run():
-    app.add_middleware(SessionMiddleware, secret_key=os.getenv('STORAGE_SECRET')) # needed for oauth
+    app.add_middleware(SessionMiddleware, secret_key=os.getenv('APP_STORAGE_SECRET')) # needed for oauth
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     ui.run(
         title=config.app.name, 
-        storage_secret=os.getenv('STORAGE_SECRET'),
+        storage_secret=os.getenv('APP_STORAGE_SECRET'),
         dark=True, 
         favicon="./images/favicon.ico", 
         port=8080, 

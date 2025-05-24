@@ -5,13 +5,13 @@ primary_region = "iad"
 auto_start_machines = true
 auto_stop_machines = true
 force_https = true
-internal_port = 8_080
+internal_port = 8080
 min_machines_running = 1
 processes = [ "app" ]
 
 [[vm]]
-cpu_kind = "shared"
-cpus = 2
+size = "shared-cpu-2x"
+memory = "1gb"
 
 [build]
 dockerfile = "Dockerfile"
@@ -21,5 +21,5 @@ ignorefile = ".dockerignore"
 APP_NAME = "Espresso"
 OTEL_SERVICE_NAME = "ESPRESSO-WEB"
 BASE_URL = "https://espresso.cafecito.tech"
-DB_NAME = "beansackV2"
-MODE = "MAINTENANCE"
+DB_NAME = "test"
+MODE = "web"

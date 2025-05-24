@@ -1,8 +1,5 @@
-import re
-import threading
 from memoization import cached
 from icecream import ic
-from sentence_transformers import SentenceTransformer
 from pybeansack.mongosack import *
 from pybeansack.models import *
 from app.shared.utils import *

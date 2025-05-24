@@ -30,7 +30,7 @@ def load_env(*args):
     embedder = Embedder(os.getenv('EMBEDDER_PATH'))
     logger = logging.getLogger(config.app.name)
 
-    az_monitoring = os.getenv('AZ_APPINSIGHTS_CONNECTION_STRING')
+    az_monitoring = os.getenv('APPINSIGHTS_CONNECTION_STRING')
     if az_monitoring:  configure_azure_monitor(
         connection_string=az_monitoring, 
         logger_name=config.app.name, 
