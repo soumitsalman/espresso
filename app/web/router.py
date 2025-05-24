@@ -112,11 +112,11 @@ def initialize_server():
     
     logger.info("server_initialized")
 
-def validate_page(barista_id: str) -> Page:
-    barista_id = barista_id.lower()
-    barista = beanops.db.get_page(barista_id)
+def validate_page(page_id: str) -> Page:
+    page_id = page_id.lower()
+    barista = beanops.db.get_page(page_id)
     if not barista:
-        raise HTTPException(status_code=404, detail=f"{barista_id} not found")
+        raise HTTPException(status_code=404, detail=f"{page_id} not found")
     return barista
 
 def validate_doc(doc_id: str):

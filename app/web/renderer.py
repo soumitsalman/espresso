@@ -210,7 +210,7 @@ def render_navigation_panel(context: Context):
     return navigation_panel  
 
 def render_search_controls(context: Context):
-    search_func = lambda: navigate_to_search(query=query.value, acc=accuracy.value, ndays=last_ndays.value, source=sources.value)
+    search_func = lambda: navigate_to_search(q=query.value, acc=accuracy.value, ndays=last_ndays.value, source=sources.value)
    
     with ui.expansion(value=False).props("dense expand-icon=tune expand-icon-toggle expand-separator") as panel:
         header = panel.add_slot("header")
@@ -237,7 +237,7 @@ def render_search_controls(context: Context):
     return panel
 
 def render_search_bar(context: Context):
-    search_func = lambda: navigate_to_search(query=search_input.value)
+    search_func = lambda: navigate_to_search(q=search_input.value)
     search_input = render_search_input(context, search_func)
     return search_input
 
@@ -493,7 +493,7 @@ def render_bean_actions(context: Context, bean: Bean):
 
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
             ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_source(bean.source)).props(ACTION_BUTTON_PROPS).tooltip("More from this channel")
-            ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(query=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            ui.button(icon="search", color="secondary", on_click=lambda: navigate_to_search(q=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
             with ui.button(icon="share", color="secondary").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):

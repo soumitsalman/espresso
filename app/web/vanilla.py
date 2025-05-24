@@ -176,18 +176,18 @@ def render_page_contents(
     render_footer()
 
 async def render_search(context: Context): 
-    initial_tags, context.kind = context.tags, config.filters.bean.default_kind
+    initial_tags, context.kind = context.tags, config.filters.page.default_kind
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.search_beans(context.query, context.accuracy, context.tags, context.kind, context.sources, context.last_ndays, None, start, limit)
+        return beanops.search_beans(context.query, context.accuracy, context.kind, context.tags, context.sources, context.last_ndays, start, limit)
     
     @ui.refreshable
     def render_search_result():
         return render_beans_as_paginated_list(
             context, 
             retrieve_beans, 
-            lambda: beanops.count_search_beans(context.query, context.accuracy, context.tags, context.kind, context.sources, context.last_ndays, beanops.MAX_LIMIT)).classes("w-full")               
+            lambda: beanops.count_search_beans(context.query, context.accuracy, context.kind, context.tags, context.sources, context.last_ndays, beanops.MAX_LIMIT)).classes("w-full")               
 
     def apply_filter(
         filter_kind: str = MAINTAIN_VALUE, 
@@ -203,10 +203,11 @@ async def render_search(context: Context):
     render_search_controls(context).classes("w-full")
     
     if context.query or context.tags:
-        render_kind_filters(lambda e: apply_filter(filter_kind=e.sender.value))
+        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
          
         render_filter_tags(
-            load_items=lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=MAX_FILTER_TAGS), 
+            context,
+            load_items=lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags), 
             on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
         ).classes("w-full")
         render_search_result()
