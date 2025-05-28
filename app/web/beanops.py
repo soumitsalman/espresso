@@ -1,16 +1,25 @@
 from memoization import cached
 from icecream import ic
-from pybeansack.mongosack import *
-from pybeansack.models import *
+from app.pybeansack.mongosack import *
+from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
 from app.shared.consts import *
 from app.web.context import *
 
 CACHE_SIZE = 100
-BEAN_HEADER_FIELDS = {K_URL: 1, K_TITLE: 1, K_KIND: 1, K_IMAGEURL: 1, K_SOURCE: 1, K_SITE_NAME: 1, K_CATEGORIES: 1, K_REGIONS: 1, K_CREATED: 1, K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1}
-BEAN_BODY_FIELDS = {K_URL: 1, K_ENTITIES: 1, K_AUTHOR: 1}
-if config.filters.bean.body == "whole": BEAN_BODY_FIELDS.update({K_SUMMARY: 1})
+
+BEAN_HEADER_FIELDS = {
+    K_URL: 1, K_TITLE: 1, 
+    K_KIND: 1, K_IMAGEURL: 1, 
+    K_SOURCE: 1, K_SITE_NAME: 1, 
+    K_CATEGORIES: 1, 
+    K_REGIONS: 1, 
+    K_CREATED: 1, 
+    K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
+}
+BEAN_BODY_FIELDS = {K_URL: 1, K_ENTITIES: 1}
+if config.filters.bean.body == "whole": BEAN_BODY_FIELDS[K_SUMMARY] = 1
 
 @cached(max_size=1, ttl=ONE_WEEK)
 def get_all_sources():
@@ -57,17 +66,11 @@ def get_filter_tags_for_stored_page(page: Page, last_ndays: int, start: int, lim
     if page.query_embedding: return db.vector_search_tags(page.query_embedding, page.query_distance or config.filters.page.default_accuracy, filter, tag_field = K_ENTITIES, remove_tags=page.query_tags, skip=start, limit=limit)
     if page.query_urls or page.query_tags or page.query_sources: return db.query_tags(filter, tag_field = K_ENTITIES, remove_tags=page.query_tags, skip=start, limit=limit)
 
-# @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
-# def get_beans_for_source(source_id: str, kind: str, tags: str|list[str]|list[list[str]], last_ndays: int, sort_by, start: int, limit: int):
-#     """Retrieves news articles, social media posts, blog articles from the feed source"""  
-#     filter=create_filter(kind, tags, source_id, None, last_ndays, None)
-#     return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
-
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_custom_page(kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_beans(filter=ic(filter), group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_filter_tags_for_custom_page(tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
@@ -113,8 +116,7 @@ def search_filter_tags(query: str, accuracy: float, tags: str|list[str]|list[lis
         skip=start, limit=limit
     )  
     # return db.query_tags(bean_filter=filter, tag_field=K_ENTITIES, remove_tags=tags, skip=start, limit=limit)
-  
-
+ 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int):
     filter = create_filter(kind, tags, sources, None, last_ndays, None)
@@ -153,8 +155,12 @@ def create_filter(
     updated_in_last_ndays: int
 ) -> dict:   
     filter = {
-        K_GIST: VALUE_EXISTS,
-        K_EMBEDDING: VALUE_EXISTS
+        K_GIST: {"$exists": True},
+        K_TITLE: {
+            "$exists": True,
+            "$regex": "^.{" + str(config.filters.bean.min_title_len) + ",}$"
+        }
+        # "$expr": { "$gt": [ { "$strLenCP": "$title" } , config.filters.bean.min_title_len ] }
     }
     if kind: filter[K_KIND] = kind
     if sources: filter["$or"] = [
@@ -171,3 +177,4 @@ def create_filter(
         elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{K_TAGS: lower_case(tag)} for tag in tags if tag] 
     
     return filter
+

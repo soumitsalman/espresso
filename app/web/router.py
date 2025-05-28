@@ -1,7 +1,7 @@
 import os
 import logging
 from icecream import ic
-from pybeansack.models import *
+from app.pybeansack.models import *
 from app.shared.env import *
 from app.shared.consts import *
 from app.web import beanops, vanilla

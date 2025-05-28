@@ -5,8 +5,8 @@ from datetime import datetime
 from fastmcp import FastMCP
 from icecream import ic
 
-from pybeansack.mongosack import NEWEST
-from pybeansack.models import *
+from app.pybeansack.mongosack import NEWEST
+from app.pybeansack.models import *
 from app.shared.env import *
 from app.shared.utils import *
 from app.shared.consts import *

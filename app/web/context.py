@@ -1,6 +1,6 @@
 import logging
 from icecream import ic
-from pybeansack.models import Page, User
+from app.pybeansack.models import Page, User
 from app.shared.env import *
 
 # this is the user navigation and access context that also arbitrates RBAC

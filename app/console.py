@@ -2,8 +2,8 @@ from icecream import ic
 from dotenv import load_dotenv
 load_dotenv()
 
-from pybeansack.mongosack import *
-from pybeansack.models import *
+from app.pybeansack.mongosack import *
+from app.pybeansack.models import *
 from app.shared.consts import *
 from app.shared.utils import *
 from app.shared.embedder import *

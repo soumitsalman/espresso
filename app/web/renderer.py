@@ -2,10 +2,9 @@ from contextlib import contextmanager
 import random
 import threading
 from typing import Callable
-import inflect
 from urllib.parse import urlencode
 from nicegui import ui, background_tasks, run
-from pybeansack.models import *
+from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.consts import *
 from app.shared.env import *
@@ -13,7 +12,6 @@ from app.web.context import *
 from app.web import beanops
 from app.web.custom_ui import SwitchButton
 from icecream import ic
-
 
 CSS_FILE = "./app/web/styles.css"
 
@@ -67,8 +65,6 @@ LOGIN_OPTIONS = [
     # }
 ]
 
-inflect_engine = inflect.engine()
-
 ellipsis_word = lambda text: text[:MAX_WORD_LENGTH]+'...' if len(text) > MAX_WORD_LENGTH else text
 rounded_number = lambda counter: str(counter) if counter < beanops.MAX_LIMIT else str(beanops.MAX_LIMIT-1)+'+'
 rounded_number_with_max = lambda counter, top: str(counter) if counter <= top else str(top)+'+'
@@ -121,7 +117,7 @@ def render_header(context: Context):
             ui.label("Espresso").classes("q-ml-sm")
             
         ui.button(icon="local_cafe_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
-        ui.button(icon="rss_feed_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
+        # ui.button(icon="rss_feed_outlined", on_click=barista_panel.toggle).props("unelevated").classes("lt-sm")
         ui.button(icon="search_outlined", on_click=search_dialog.open).props("unelevated").classes("lt-sm")
         render_search_bar(context).props("dense").classes("w-1/2 p-0 gt-xs")
 
@@ -205,7 +201,7 @@ def render_navigation_panel(context: Context):
                         with ui.tab_panel(item['label']).classes(STRETCH_FIT):
                             render_page_names_as_list(context, item['items']).classes(STRETCH_FIT)
 
-        if navigation_items: tabs.set_value(navigation_items[0]['label'])
+    if navigation_items: tabs.set_value(navigation_items[0]['label'])
         
     return navigation_panel  
 
@@ -313,8 +309,8 @@ def render_beans(context: Context, load_beans: Callable, container: ui.element =
         beans = await run.io_bound(load_beans)
         container.clear()
         with container:
-            if not beans: ui.label(NOTHING_FOUND).classes("w-full text-center") 
-            [render_bean_with_related(context, bean).classes(item_classes) for bean in beans] 
+            if beans: [render_bean_with_related(context, bean).classes(item_classes) for bean in beans] 
+            else: ui.label(NOTHING_FOUND).classes("w-full text-center") 
 
     container = container or ui.column(align_items="stretch")
     with container:
@@ -428,17 +424,17 @@ def render_bean_header(context: Context, bean: Bean):
     return view
 
 def render_bean_stats(context: Context, bean: Bean): 
-    with ui.row(align_items="center").classes("w-full gap-3") as view:   
+    with ui.row(align_items="center", wrap=False).classes("w-full gap-2") as view:   
         render_bean_source(context, bean)  
-        if bean.comments: ui.label(f"💬 {bean.comments}").tooltip(f"{bean.comments} comments across various social media sources")
-        if bean.likes: ui.label(f"👍 {bean.likes}").tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares and bean.shares > 1: ui.label(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
-        if bean.related and bean.related > 1: ui.label(f"🗞️ {bean.related}").tooltip("Related articles")
+        if bean.comments: ui.label(f"💬 {humanize.intword(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
+        if bean.likes: ui.label(f"👍 {humanize.intword(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
+        if bean.shares and bean.shares > 1: ui.label(f"🔗 {humanize.intword(bean.shares)}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
+        if bean.related and bean.related > 0: ui.label(f"🗞️ {bean.related}").tooltip(f"{bean.related} related articles")
         # , create_navigation_target("/related", url=bean.url)
     return view
 
 def render_bean_attributes(context: Context, bean: Bean):
-    with ui.row(align_items="center").classes("w-full gap-3") as view:
+    with ui.row(align_items="center", wrap=False).classes("w-full gap-2") as view:
         ui.label(naturalday(bean.created))
         if bean.categories: ui.markdown(f"🏷️ [{bean.categories[0]}]({create_page_target('/categories', bean.categories[0])})")           
         if bean.regions: ui.markdown(f"📍 [{bean.regions[0]}]({create_page_target('/regions', bean.regions[0])})")
@@ -454,7 +450,10 @@ def render_bean_body(context: Context, bean: Bean):
 def render_bean_entities(context: Context, bean: Bean):
     make_tag = lambda tag: ui.link(tag, target=create_page_target("/entities", tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
     with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
-        [make_tag(tag) for tag in random.sample(bean.entities, min(config.filters.bean.max_tags, len(bean.entities)))]
+        list(map(
+            make_tag, 
+            random.sample(bean.entities, min(config.filters.bean.max_entities, len(bean.entities)))
+        ))
     return view
 
 def render_bean_source(context: Context, bean: Bean):

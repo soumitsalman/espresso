@@ -6,8 +6,8 @@ from fastapi.responses import FileResponse
 from typing import Literal
 from icecream import ic
 
-from pybeansack.mongosack import *
-from pybeansack.models import *
+from app.pybeansack.mongosack import *
+from app.pybeansack.models import *
 from app.shared.env import *
 from app.shared.utils import *
 from app.shared.consts import *

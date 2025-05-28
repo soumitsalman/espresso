@@ -9,7 +9,6 @@ slack-bolt
 pydantic
 retry
 pyjwt
-inflect
 humanize
 memoization
 azure-monitor-opentelemetry

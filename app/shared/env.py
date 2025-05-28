@@ -2,7 +2,7 @@ import os, tomli
 import logging
 from types import SimpleNamespace
 from azure.monitor.opentelemetry import configure_azure_monitor
-from pybeansack.mongosack import Beansack
+from app.pybeansack.mongosack import Beansack
 from app.shared.embedder import Embedder
 
 config: SimpleNamespace = None

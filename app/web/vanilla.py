@@ -1,13 +1,13 @@
 from app.shared.consts import *
 from app.shared.env import *
 from app.web import beanops
-from pybeansack.models import *
+from app.pybeansack.models import *
 from app.web.context import *
 from app.web.renderer import *
 from app.web.custom_ui import *
 from nicegui import ui
 
-from pybeansack.mongosack import TRENDING, LATEST
+from app.pybeansack.mongosack import TRENDING, LATEST
 
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
@@ -159,7 +159,7 @@ def render_page_contents(
 
     render_header(context)  
     # kind and sort by filter panel
-    with ui.row(wrap=False, align_items="stretch").classes("w-full"):
+    with ui.row(wrap=False, align_items="stretch").classes("w-full justify-between md:justify-start"):
         render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
         render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
 
@@ -202,7 +202,7 @@ async def render_search(context: Context):
     render_header(context)
     render_search_controls(context).classes("w-full")
     
-    if context.query or context.tags:
+    if context.query:
         render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
          
         render_filter_tags(

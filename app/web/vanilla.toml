@@ -1,7 +1,11 @@
 [filters]
 [filters.bean]
-max_tags = 5
+max_entities = 5
 max_related = 5
+max_regions = 1
+max_categories = 1
+min_title_len = 64
+max_body_len = 400
 body = "whole"
 
 [filters.page]
