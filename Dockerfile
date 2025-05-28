@@ -6,7 +6,7 @@ COPY . .
 RUN rm -r app/connectors
 RUN rm -r app/slack
 RUN pip install --no-cache-dir torch==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r pybeansack/requirements.txt
+RUN pip install --no-cache-dir -r app/pybeansack/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 ENV EMBEDDER_PATH=/espresso/models/GIST-small-Embedding-v0
