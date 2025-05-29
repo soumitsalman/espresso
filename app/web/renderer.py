@@ -194,7 +194,7 @@ def render_navigation_panel(context: Context):
             with ui.scroll_area().classes(STRETCH_FIT):
                 with ui.tab_panels(tabs).props("vertical"):
                     with ui.tab_panel("search").classes(STRETCH_FIT):
-                        render_barista_search_bar(search_and_render_barista)
+                        render_navigation_search_bar(search_and_render_barista)
                         search_results_panel = render_page_names_as_list(context, None)
 
                     for item in navigation_items:
@@ -247,7 +247,7 @@ def render_search_input(context: Context, trigger_search: Callable):
             ui.button(icon="search", color="secondary", on_click=trigger_search).bind_visibility_from(search_input, "value").props("round flat dense").classes("m-0")
     return search_input
 
-def render_barista_search_bar(search_func: Callable):
+def render_navigation_search_bar(search_func: Callable):
     trigger_search = lambda: search_func(search_input.value)
     search_input = ui.input(placeholder=SEARCH_BARISTA_PLACEHOLDER) \
         .on("keydown.enter", trigger_search) \
@@ -266,6 +266,7 @@ def render_page_banner(context: Context):
     if context.page_type == "stored_page": banner_text = f"☕ {context.page.title}"
     elif context.page_type == K_CATEGORIES: banner_text = f"🏷️ {context.page}"
     elif context.page_type == K_REGIONS: banner_text = f"📍 {context.page}"
+    elif context.page_type == K_RELATED: banner_text = f"🗞️ {context.page.title}"
     else: banner_text = context.page
 
     with render_banner(banner_text) as view:
@@ -361,7 +362,7 @@ def render_bean_with_related(context: Context, bean: Bean):
     async def on_read():
         nonlocal related_beans
         if related_beans: return
-        related_beans = await run.io_bound(beanops.get_related_beans, url=bean.url, kind=None, tags=None, sources=None, last_ndays=None)
+        related_beans = await run.io_bound(beanops.get_related_beans, url=bean.url, kind=None, tags=None, sources=None, last_ndays=None, sort_by=None, start=0, limit=config.filters.bean.max_related)
         if not related_beans: return
         with carousel:
             for item in related_beans:
@@ -419,25 +420,36 @@ def render_bean_header(context: Context, bean: Bean):
             ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
             ui.label(bean.title).classes("bean-title")    
-            render_bean_attributes(context, bean).classes('text-caption')
-            render_bean_stats(context, bean).classes("text-caption") 
+            render_bean_source_attributes(context, bean).classes("text-caption truncate")
+            render_bean_stats(context, bean).classes("text-caption truncate") 
+    return view
+
+render_link = lambda prefix, title, target: ui.markdown((f"{prefix} " if prefix else "")+f"[{title}]({target})")
+render_navigate_button = lambda title, target: ui.button(title, color="transparent", on_click=lambda: navigate_to(target)).props("no-caps size=sm padding=none flat")
+
+def render_bean_source_attributes(context: Context, bean: Bean):
+    with ui.row(align_items="center", wrap=False).classes("w-full gap-3") as view:
+        ui.label(naturalday(bean.created))
+        render_bean_source(context, bean)
+        if bean.author: ui.label(f"✍️ {bean.author}")
     return view
 
 def render_bean_stats(context: Context, bean: Bean): 
-    with ui.row(align_items="center", wrap=False).classes("w-full gap-2") as view:   
-        render_bean_source(context, bean)  
+    with ui.row(align_items="center", wrap=False).classes("w-full gap-3") as view:    
+        # if bean.categories: render_navigate_button(f"🏷️ {bean.categories[0]}", create_page_target('/categories', bean.categories[0]))           
+        # if bean.regions: render_navigate_button(f"📍 {bean.regions[0]}", create_page_target('/regions', bean.regions[0]))
+        if bean.categories: render_link("🏷️", bean.categories[0], create_page_target('/categories', bean.categories[0]))           
+        if bean.regions: render_link("📍", bean.regions[0], create_page_target('/regions', bean.regions[0]))
         if bean.comments: ui.label(f"💬 {humanize.intword(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: ui.label(f"👍 {humanize.intword(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
         if bean.shares and bean.shares > 1: ui.label(f"🔗 {humanize.intword(bean.shares)}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
-        if bean.related and bean.related > 0: ui.label(f"🗞️ {bean.related}").tooltip(f"{bean.related} related articles")
-        # , create_navigation_target("/related", url=bean.url)
+        if bean.related: render_link("🗞️", bean.related, create_navigation_target('/related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
     return view
 
-def render_bean_attributes(context: Context, bean: Bean):
+def render_bean_category_and_region(context: Context, bean: Bean):
     with ui.row(align_items="center", wrap=False).classes("w-full gap-2") as view:
-        ui.label(naturalday(bean.created))
-        if bean.categories: ui.markdown(f"🏷️ [{bean.categories[0]}]({create_page_target('/categories', bean.categories[0])})")           
-        if bean.regions: ui.markdown(f"📍 [{bean.regions[0]}]({create_page_target('/regions', bean.regions[0])})")
+        if bean.categories: render_navigate_button(f"🏷️ {bean.categories[0]}", create_page_target('/categories', bean.categories[0]))           
+        if bean.regions: render_navigate_button(f"📍 {bean.regions[0]}", create_page_target('/regions', bean.regions[0]))
     return view
 
 def render_bean_body(context: Context, bean: Bean):

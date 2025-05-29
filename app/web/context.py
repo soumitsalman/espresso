@@ -1,13 +1,13 @@
 import logging
 from icecream import ic
-from app.pybeansack.models import Page, User
+from app.pybeansack.models import Bean, Page, User
 from app.shared.env import *
 
 # this is the user navigation and access context that also arbitrates RBAC
 # TODO: move this to a different file
 class Context:
     user: User|str|None = None
-    page: Page|str = None
+    page: Page|str|Bean = None
     page_type: str = None
     kind: str|None = None
     sort_by: str|None = None
@@ -18,7 +18,7 @@ class Context:
     accuracy: float|None = None
     last_ndays: int|None = None
 
-    def __init__(self, page: Page|str, user: User|str, page_type: str = None):
+    def __init__(self, page: Page|str|Bean, user: User|str, page_type: str = None):
         self.page = page
         self.user = user
         self.page_type = "stored_page" if isinstance(page, Page) else page_type
@@ -33,6 +33,7 @@ class Context:
     def page_id(self):
         if isinstance(self.page, Page): return self.page.id
         if isinstance(self.page, str): return self.page
+        if isinstance(self.page, Bean): return self.page.url
 
     @property
     def is_registered(self):

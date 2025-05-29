@@ -12,7 +12,7 @@ CACHE_SIZE = 100
 BEAN_HEADER_FIELDS = {
     K_URL: 1, K_TITLE: 1, 
     K_KIND: 1, K_IMAGEURL: 1, 
-    K_SOURCE: 1, K_SITE_NAME: 1, 
+    K_SOURCE: 1, K_SITE_NAME: 1, K_AUTHOR: 1,
     K_CATEGORIES: 1, 
     K_REGIONS: 1, 
     K_CREATED: 1, 
@@ -118,9 +118,9 @@ def search_filter_tags(query: str, accuracy: float, tags: str|list[str]|list[lis
     # return db.query_tags(bean_filter=filter, tag_field=K_ENTITIES, remove_tags=tags, skip=start, limit=limit)
  
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int):
+def get_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_related_beans(url=url, filter=filter, limit=config.filters.bean.max_related, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
+    return db.query_related_beans(url=url, filter=filter, sort_by=sort_by, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
 
 PAGE_MINIMAL_FIELDS = {K_ID: 1, K_TITLE: 1}
 PAGE_DEFAULT_FIELDS = {K_ID: 1, K_TITLE: 1, K_DESCRIPTION: 1, "public": 1, "owner": 1}

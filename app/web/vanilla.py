@@ -66,18 +66,6 @@ async def render_stored_page(context: Context):
     render_page_banner(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-# async def render_beans_for_source(context: Context):
-#     def retrieve_beans(start, limit):
-#         context.log("retrieve", start=start, limit=limit)
-#         return beanops.get_beans_for_source(context.sources, context.kind, context.tags, None, context.sort_by, start, limit)
-
-#     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
-#         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
-#         return context
-    
-#     render_banner(context.sources)
-#     render_page_contents(context, retrieve_beans, lambda: config.filters.page.categories, apply_filter)
-
 async def render_custom_page(context: Context): 
     initial_tags = context.tags
 
@@ -97,38 +85,22 @@ async def render_custom_page(context: Context):
     render_page_banner(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
-# def render_content(context: Context, get_tags_func: Callable, apply_filter_func: Callable, retrieval_func: Callable):
-#     def apply_filter(**kwargs):
-#         apply_filter_func(**kwargs)
-#         render_beans_panel.refresh()
+async def render_related_beans_page(context: Context):
+    initial_tags = context.tags
 
-#     @ui.refreshable
-#     def render_beans_panel():                
-#         return render_beans_as_extendable_list(
-#             context, 
-#             retrieval_func, 
-#             ui.grid().classes(CONTENT_GRID_CLASSES)).classes("w-full")
-
-#     render_header(context)  
+    def retrieve_beans(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_related_beans(context.page.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=config.filters.page.default_window, sort_by=context.sort_by, start=start, limit=limit)
         
-#     # kind and sort by filter panel
-#     with ui.row(wrap=False, align_items="stretch").classes("w-full"):
-#         ui.toggle(
-#             options=KIND_LABELS,
-#             value=DEFAULT_KIND,
-#             on_change=lambda e: apply_filter(filter_kind=e.sender.value)).props(TOGGLE_OPTIONS_PROPS+" clearable")
-#         ui.toggle(
-#             options=list(beanops.SORT_BY.keys()), 
-#             value=DEFAULT_SORT_BY, 
-#             on_change=lambda e: apply_filter(filter_sort_by=e.sender.value)).props(TOGGLE_OPTIONS_PROPS)
+    get_filters_items = lambda: random.sample(context.page.entities, min(len(context.page.entities), config.filters.page.max_tags)) if context.page.entities else None
+
+    def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
+        if filter_item is not MAINTAIN_VALUE:
+            context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
+        return context
     
-#     # tag filter panel
-#     render_filter_tags(
-#         load_tags=get_tags_func, 
-#         on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)).classes("w-full")
-#     render_beans_panel()
-#     render_related_baristas(context)
-#     render_footer()
+    render_page_banner(context)
+    render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 def render_page_contents(
     context: Context, 

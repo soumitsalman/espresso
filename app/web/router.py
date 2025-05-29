@@ -28,10 +28,32 @@ JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 min
 LIMIT_5_A_MINUTE = "5/minute"
 LIMIT_10_A_MINUTE = "10/minute"
 
-Q = Query(min_length=3, max_length=512, default=None)
-ACCURACY = Query(ge=0, le=1, default=config.filters.page.default_accuracy)
-TAGS = Query(max_length=beanops.MAX_LIMIT, default=None)
-SOURCES = Query(max_length=beanops.MAX_LIMIT, default=None)
+Q = Query(
+    ..., 
+    min_length=3, 
+    max_length=512,
+    description="The search query string. Minimum length is 3 characters."
+)
+URL = Query(
+    ..., 
+    min_length=10, 
+    description="The URL of the bean for which related beans are to be found. Minimum length is 10 characters."
+)
+ACCURACY = Query(
+    default=config.filters.page.default_accuracy, 
+    ge=0, le=1,
+    description="Minimum cosine similarity score (only applicable to vector search)."
+)
+TAGS = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more tags such as entities, categories or regions to filter beans."
+)
+SOURCES = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="One or more source ids to filter beans."
+)
 WINDOW = Query(ge=beanops.MIN_WINDOW, le=beanops.MAX_WINDOW, default=config.filters.page.default_window)
 
 logger: logging.Logger = logging.getLogger(config.app.name)
@@ -114,10 +136,14 @@ def initialize_server():
 
 def validate_page(page_id: str) -> Page:
     page_id = page_id.lower()
-    barista = beanops.db.get_page(page_id)
-    if not barista:
-        raise HTTPException(status_code=404, detail=f"{page_id} not found")
-    return barista
+    stored_page = beanops.db.get_page(page_id)
+    if not stored_page: raise HTTPException(status_code=404, detail=f"{page_id} not found")
+    return stored_page
+
+def validate_bean_url(url: str) -> Page:
+    bean = db.get_bean(url, project={K_URL: 1, K_TITLE: 1, K_ENTITIES: 1, K_CATEGORIES: 1, K_REGIONS: 1})
+    if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
+    return bean
 
 def validate_doc(doc_id: str):
     if not bool(os.path.exists(f"docs/{doc_id}")):
@@ -150,7 +176,7 @@ def validate_authenticated_user():
         raise HTTPException(status_code=401, detail="Unauthorized")
     return user
 
-def create_context(page_id: str|Page, request: Request, page_type: str = None) -> Context:
+def create_context(page_id: str|Page|Bean, request: Request, page_type: str = None) -> Context:
     try:
         user = validate_authenticated_user()
     except:
@@ -302,14 +328,15 @@ async def custom_region_page(
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def related(
     request: Request, 
-    url: str = Path(),
+    url: str = URL,
     tags: list[str] = TAGS,
     sources: list[str] = SOURCES
 ):
-    context = create_context(url, request, K_RELATED)
+    bean = validate_bean_url(url)
+    context = create_context(bean, request, K_RELATED)
     context.tags = tags
     context.sources = sources
-    await vanilla.render_page_for_related_beans(context)
+    await vanilla.render_related_beans_page(context)
 
 @ui.page("/search", title="Espresso Search")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)

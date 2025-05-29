@@ -1,5 +1,5 @@
 [filters]
-[filters.bean]
+[filters.page]
 default_accuracy = 0.75
 default_limit = 20
 

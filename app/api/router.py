@@ -78,7 +78,8 @@ SEARCH_TYPE = Query(
     description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search."
 )
 ACCURACY = Query(
-    default=config.filters.bean.default_accuracy, 
+    default=config.filters.page.default_accuracy, 
+    ge=0, le=1,
     description="Minimum cosine similarity score (only applicable to vector search)."
 )
 URL = Query(
@@ -135,7 +136,7 @@ OFFSET = Query(
 LIMIT = Query(
     ge=MIN_LIMIT, 
     le=MAX_LIMIT, 
-    default=config.filters.bean.default_limit, 
+    default=config.filters.page.default_limit, 
     description="Maximum number of items to return."
 )
 
