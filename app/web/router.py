@@ -140,9 +140,14 @@ def validate_page(page_id: str) -> Page:
     if not stored_page: raise HTTPException(status_code=404, detail=f"{page_id} not found")
     return stored_page
 
-def validate_bean_url(url: str) -> Page:
+def validate_bean(url: str) -> Page:
     bean = db.get_bean(url, project={K_URL: 1, K_TITLE: 1, K_ENTITIES: 1, K_CATEGORIES: 1, K_REGIONS: 1})
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
+    return bean
+
+def validate_generated_bean(bean_id: str) -> Page:
+    bean = db.get_bean(bean_id, project={K_EMBEDDING: 0})
+    if not bean or bean.kind != GENERATED: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
     return bean
 
 def validate_doc(doc_id: str):
@@ -332,7 +337,7 @@ async def related(
     tags: list[str] = TAGS,
     sources: list[str] = SOURCES
 ):
-    bean = validate_bean_url(url)
+    bean = validate_bean(url)
     context = create_context(bean, request, K_RELATED)
     context.tags = tags
     context.sources = sources
@@ -362,6 +367,11 @@ async def stored_page(request: Request, page_id: Page = Depends(validate_page, u
     if not context.has_read_permission:
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_stored_page(context)
+
+@ui.page("/articles/{bean_id}", title="Espresso Generated Articles")
+async def generated_beans(request: Request, bean_id: Page = Depends(validate_generated_bean, use_cache=True)):
+    context = create_context(bean_id, request, GENERATED)
+    await vanilla.render_generated_bean_page(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)

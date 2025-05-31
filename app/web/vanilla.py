@@ -21,7 +21,16 @@ async def render_home(context: Context):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
     
-    render_banner(HOME_BANNER_TEXT)    
+    render_banner(HOME_BANNER_TEXT)   
+
+    if beanops.count_generated_beans(None, None, config.filters.page.default_window, limit=1):
+        render_beans(
+            context,
+            lambda: beanops.get_generated_beans(None, None, config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
+            render_grid()
+        )
+        render_thick_separator() 
+
     render_page_contents(
         context, 
         retrieve_beans,
@@ -64,6 +73,15 @@ async def render_stored_page(context: Context):
         return context
             
     render_page_banner(context)
+
+    if beanops.count_generated_beans(context.page, tags=context.tags, last_ndays = config.filters.page.default_window, limit=1):
+        render_beans(
+            context,
+            lambda: beanops.get_generated_beans(context.page, None, config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
+            render_grid()
+        )
+        render_thick_separator()
+
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_custom_page(context: Context): 
@@ -83,6 +101,15 @@ async def render_custom_page(context: Context):
         return context
     
     render_page_banner(context)
+
+    if beanops.count_generated_beans(None, tags=context.tags, last_ndays=config.filters.page.default_window, limit=1):
+        render_beans(
+            context,
+            lambda: beanops.get_generated_beans(None, tags=context.tags, last_ndays = config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
+            render_grid()
+        )
+        render_thick_separator()
+
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_related_beans_page(context: Context):
@@ -102,6 +129,28 @@ async def render_related_beans_page(context: Context):
     render_page_banner(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
+async def render_generated_bean_page(context: Context):
+
+    # def retrieve_beans(start, limit):
+    #     context.log("retrieve", start=start, limit=limit)
+    #     return beanops.get_related_beans(context.page.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=config.filters.page.default_window, sort_by=context.sort_by, start=start, limit=limit)
+        
+    # get_filters_items = lambda: random.sample(context.page.entities, min(len(context.page.entities), config.filters.page.max_tags)) if context.page.entities else None
+
+    # def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
+    #     if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
+    #     return context
+    
+    render_header(context)
+    render_page_banner(context)        
+    ui.markdown(context.page.content)
+    with ui.row(align_items="center").classes(STRETCH_FIT+" gap-2"):
+        if context.page.entities: render_bean_entities(context, context.page)
+        ui.chip("AI Generated").props("square")
+    render_thick_separator()
+    render_footer()
+    # render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
+
 def render_page_contents(
     context: Context, 
     retrieve_beans_func: Callable, 
@@ -112,7 +161,6 @@ def render_page_contents(
 
     @ui.refreshable
     def render_beans_panel(ctx: Context):     
-        # container = ui.row(wrap=True, align_items = "start").classes(STRETCH_FIT)           
         return render_beans_as_extendable_list(ctx, retrieve_beans_func).classes("w-full")
     
     def apply_filter(
@@ -130,6 +178,7 @@ def render_page_contents(
         render_beans_panel.refresh(context)
 
     render_header(context)  
+
     # kind and sort by filter panel
     with ui.row(wrap=False, align_items="stretch").classes("w-full justify-between md:justify-start"):
         render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))

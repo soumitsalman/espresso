@@ -4,7 +4,7 @@ max_entities = 5
 max_related = 5
 max_regions = 1
 max_categories = 1
-min_title_len = 64
+min_title_len = 8
 max_body_len = 400
 body = "whole"
 
@@ -26,7 +26,6 @@ max_beans = 5
 kinds = ["news", "blog"]
 default_accuracy = 0.77
 default_window = 30
-default_limit = 10
 default_kind = "news"
 default_sort_by = "Latest"
 
