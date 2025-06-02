@@ -22,15 +22,7 @@ async def render_home(context: Context):
         return context
     
     render_banner(HOME_BANNER_TEXT)   
-
-    if beanops.count_generated_beans(None, None, config.filters.page.default_window, limit=1):
-        render_beans(
-            context,
-            lambda: beanops.get_generated_beans(None, None, config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
-            render_grid()
-        )
-        render_thick_separator() 
-
+    _render_generated_beans_panel(context)
     render_page_contents(
         context, 
         retrieve_beans,
@@ -73,15 +65,7 @@ async def render_stored_page(context: Context):
         return context
             
     render_page_banner(context)
-
-    if beanops.count_generated_beans(context.page, tags=context.tags, last_ndays = config.filters.page.default_window, limit=1):
-        render_beans(
-            context,
-            lambda: beanops.get_generated_beans(context.page, None, config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
-            render_grid()
-        )
-        render_thick_separator()
-
+    _render_generated_beans_panel(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_custom_page(context: Context): 
@@ -101,15 +85,7 @@ async def render_custom_page(context: Context):
         return context
     
     render_page_banner(context)
-
-    if beanops.count_generated_beans(None, tags=context.tags, last_ndays=config.filters.page.default_window, limit=1):
-        render_beans(
-            context,
-            lambda: beanops.get_generated_beans(None, tags=context.tags, last_ndays = config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
-            render_grid()
-        )
-        render_thick_separator()
-
+    _render_generated_beans_panel(context)
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_related_beans_page(context: Context):
@@ -130,26 +106,36 @@ async def render_related_beans_page(context: Context):
     render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
 
 async def render_generated_bean_page(context: Context):
+    bean = context.page
 
-    # def retrieve_beans(start, limit):
-    #     context.log("retrieve", start=start, limit=limit)
-    #     return beanops.get_related_beans(context.page.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=config.filters.page.default_window, sort_by=context.sort_by, start=start, limit=limit)
-        
-    # get_filters_items = lambda: random.sample(context.page.entities, min(len(context.page.entities), config.filters.page.max_tags)) if context.page.entities else None
+    render_header(context)  
+    with render_banner(bean.title):
+        render_entity_as_chip("AI Generated", False).classes("q-mx-sm")
+    ui.markdown("\n".join(["> "+v for v in bean.verdict]))    
+    ui.markdown("\n".join(bean.analysis))
+    ui.label("Insights & Datapoints").classes("text-bold")
+    ui.markdown("\n".join(bean.insights))
+    if bean.entities: render_bean_entities(context, bean)
+    #     with ui.row(wrap=True, align_items="baseline").classes("gap-1 text-caption"):
+    #         list(map(render_entity_as_link, bean.entities))
 
-    # def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
-    #     if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
-    #     return context
-    
-    render_header(context)
-    render_page_banner(context)        
-    ui.markdown(context.page.content)
-    with ui.row(align_items="center").classes(STRETCH_FIT+" gap-2"):
-        if context.page.entities: render_bean_entities(context, context.page)
-        ui.chip("AI Generated").props("square")
     render_thick_separator()
-    render_footer()
-    # render_page_contents(context, retrieve_beans, get_filters_items, apply_filter)
+
+    # now render related items
+    def retrieve_related_beans(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_related_beans(bean.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=config.filters.page.default_window, sort_by=context.sort_by, start=start, limit=limit)
+    render_page_contents(context, retrieve_related_beans, None, None)
+
+def _render_generated_beans_panel(context: Context):
+    page = context.page if context.is_stored_page else None
+    if not beanops.count_generated_beans(page, tags=context.tags, last_ndays=config.filters.page.default_window, limit=1): return
+    render_beans(
+        context,
+        lambda: beanops.get_generated_beans(page, tags=context.tags, last_ndays=config.filters.page.default_window, start=0, limit=config.filters.page.max_beans),
+        render_grid()
+    )
+    render_thick_separator()
 
 def render_page_contents(
     context: Context, 
@@ -185,12 +171,11 @@ def render_page_contents(
         render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
 
     # topic filter panel
-    if get_filter_tags:
-        render_filter_tags(
-            context,
-            load_items=get_filter_tags, 
-            on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-        ).classes("w-full")
+    if get_filter_tags: render_filter_tags(
+        context,
+        load_items=get_filter_tags, 
+        on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+    ).classes("w-full")
 
     render_beans_panel(context)
     render_similar_pages(context)

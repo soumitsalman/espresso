@@ -10,7 +10,7 @@ from app.web.context import *
 CACHE_SIZE = 100
 
 BEAN_HEADER_FIELDS = {
-    K_URL: 1, K_TITLE: 1, 
+    K_URL: 1, K_TITLE: 1,
     K_KIND: 1, K_IMAGEURL: 1, 
     K_SOURCE: 1, K_SITE_NAME: 1, K_SITE_BASE_URL: 1, K_AUTHOR: 1,
     K_CATEGORIES: 1, 
@@ -32,11 +32,15 @@ def load_bean_body(bean: Bean):
     bean.summary = res.summary
     return bean
 
+def get_generated_bean(url: str):
+    bean = db.beanstore.find_one(filter={K_ID: url, K_KIND: GENERATED}, projection={K_EMBEDDING: 0})
+    if bean: return GeneratedBean(**bean)
+
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_beans_for_home(kind: str, tags: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """get one bean per cluster and per source"""
     filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_beans(filter, K_SOURCE, sort_by, start, limit, BEAN_HEADER_FIELDS)
+    return db.query_beans(filter, [K_SOURCE, K_CLUSTER_ID], sort_by, start, limit, BEAN_HEADER_FIELDS)
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_stored_page(page: Page, kind: str, tags: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -53,20 +57,16 @@ def get_beans_for_stored_page(page: Page, kind: str, tags: str|list[str], last_n
     if page.query_embedding: return db.vector_search_beans(embedding=page.query_embedding, similarity_score=page.query_distance or config.filters.page.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
     if page.query_tags or page.query_sources: return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
-@cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
+# @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_generated_beans(page: Page, tags, last_ndays: int, start: int, limit: int):
-    filter=create_filter(
-        kind = GENERATED, 
-        tags = tags or (page.query_tags if page else None), # page.query_tags, 
-        sources = None, 
-        urls = None,
-        created_in_last_ndays = last_ndays, 
-        updated_in_last_ndays = None
+    filter=create_filter_for_generated_bean(page, tags, last_ndays)
+    if page and page.query_embedding: return db.vector_search_beans(
+        embedding=page.query_embedding, 
+        similarity_score=(1 - page.query_distance) if page.query_distance else config.filters.page.default_accuracy, 
+        filter=filter, sort_by=NEWEST, 
+        skip=start, limit=limit, project=BEAN_HEADER_FIELDS
     )
-    accuracy = (1 - page.query_distance) if page and page.query_distance else config.filters.page.default_accuracy
-    # if page.query_embedding: return db.vector_search_beans(embedding=page.query_embedding, similarity_score=accuracy, filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    # if page.query_tags: return db.query_beans(filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)  
-    return db.query_beans(filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
+    return db.sample_beans(filter=filter, sort_by=NEWEST, limit=limit, project=BEAN_HEADER_FIELDS)   
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_custom_page(kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -89,17 +89,12 @@ def get_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], 
     return db.query_related_beans(url=url, filter=filter, sort_by=sort_by, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
 
 def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
-    filter=create_filter(
-        kind = GENERATED, 
-        tags = tags or (page.query_tags if page else None), #page.query_tags, 
-        sources = None, 
-        urls = None,
-        created_in_last_ndays = last_ndays, 
-        updated_in_last_ndays = None
+    filter=create_filter_for_generated_bean(page, tags, last_ndays)
+    if page and page.query_embedding: return db.count_vector_search_beans(
+        embedding=page.query_embedding, 
+        similarity_score=(1 - page.query_distance) if page.query_distance else config.filters.page.default_accuracy, 
+        filter=filter, limit=limit
     )
-    accuracy = (1 - page.query_distance) if page and page.query_distance else config.filters.page.default_accuracy
-    # if page.query_embedding: return db.vector_search_beans(embedding=page.query_embedding, similarity_score=accuracy, filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
-    # if page.query_tags: return db.query_beans(filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)  
     return db.count_beans(filter=filter, limit=limit)  
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
@@ -199,5 +194,16 @@ def create_filter(
         if all(isinstance(tag, str) for tag in tags): filter[K_TAGS] = lower_case(tags)
         elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{K_TAGS: lower_case(tag)} for tag in tags if tag] 
     
+    return filter
+
+def create_filter_for_generated_bean(
+    page: Page,
+    tags: str|list[str]|list[list[str]],
+    created_in_last_ndays: int
+) -> dict:   
+    filter = {K_KIND: GENERATED}
+    if created_in_last_ndays: filter[K_CREATED] = {"$gte": ndays_ago(created_in_last_ndays)}
+    if tags: filter[K_TAGS] = lower_case(tags)
+    elif page and page.query_tags: filter[K_TAGS] = lower_case(page.query_tags)
     return filter
 

@@ -411,9 +411,7 @@ def render_expandable_bean(context: Context, bean: Bean, expanded: bool = False,
 def render_whole_bean(context: Context, bean: Bean):
     with ui.column(align_items="stretch") as view:
         render_bean_header(context, bean).classes(add="q-mb-sm")
-        # render_bean_body(context, bean)
-        ui.markdown(bean.content or bean.summary)
-
+        render_bean_body(context, bean)
     return view 
 
 def render_bean(context, bean, expanded: bool = False, on_expanded = None):
@@ -422,26 +420,27 @@ def render_bean(context, bean, expanded: bool = False, on_expanded = None):
 
 def render_bean_header(context: Context, bean: Bean):
     with ui.row(wrap=False, align_items="stretch").classes("w-full bean-header") as view:            
-        if bean.image_url: 
-            ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
+        if bean.image_url: ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
             ui.label(bean.title).classes("bean-title")    
-            
-            render_bean_source_attributes(context, bean).classes("truncate my-1")
-            render_bean_classification(context, bean).classes("truncate")
-            render_bean_stats(context, bean).classes("truncate my-1") 
+            render_bean_source_attributes(context, bean).classes("my-1")
+            render_bean_stats_and_classification(context, bean)
     return view
 
-render_link = lambda prefix, title, target: ui.markdown((f"{prefix} " if prefix else "")+f"[{title}]({target})")
-render_bean_attribute = lambda title, target = None: ui.chip(title, color="transparent", on_click=(lambda: navigate_to(target)) if target else None).props("dense flat").classes("m-0 p-0 text-caption ellipsis")
+render_attribute_as_link = lambda prefix, title, target: ui.markdown((f"{prefix} " if prefix else "")+f"[{title}]({target})")
+render_attribute_as_chip = lambda title, target = None: ui.chip(
+    title, 
+    color="transparent", 
+    on_click=(lambda: navigate_to(target)) if target else None).props("dense flat").classes("m-0 text-caption ellipsis")
 
 def render_bean_source_attributes(context: Context, bean: Bean):
-    with ui.row(align_items="center", wrap=False).classes("w-full gap-3") as view:
-        render_bean_attribute(naturalday(bean.created))
-        with render_bean_attribute('', create_page_target("/sources", bean.source)) as view:        
-            ui.icon("img:"+ favicon(bean)).classes("mr-1")
-            ui.label(bean.site_name or bean.source)
-        if bean.author: render_bean_attribute(f"✍️ {bean.author}")
+    with ui.row(align_items="center", wrap=False).classes("w-full gap-2") as view:
+        render_attribute_as_chip(naturalday(bean.created))
+        render_attribute_as_chip(bean.site_name or bean.source, create_page_target("/sources", bean.source)).props("icon=img:"+favicon(bean))
+        # with render_bean_attribute(bean.site_name or bean.source, create_page_target("/sources", bean.source)).props("icon-right=img:"+favicon(bean)) as view:        
+        #     ui.icon("img:"+ favicon(bean)).classes("mr-1")
+        #     ui.label(bean.site_name or bean.source)
+        if bean.author: render_attribute_as_chip(f"✍️ {bean.author}")
     return view
 
 # def render_bean_source(context: Context, bean: Bean):
@@ -454,18 +453,28 @@ def render_bean_source_attributes(context: Context, bean: Bean):
     #     render_bean_attribute(bean.site_name or bean.source, create_page_target("/sources", bean.source))
     # return view
 
+def render_bean_stats_and_classification(context: Context, bean: Bean): 
+    with ui.row(align_items="center").classes("gap-2") as view:    
+        if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_page_target('/categories', bean.categories[0]))           
+        if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_page_target('/regions', bean.regions[0]))  
+        if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_navigation_target('/related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
+        if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
+        if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
+        if bean.shares: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
+    return view
+
 def render_bean_classification(context: Context, bean: Bean): 
     with ui.row(align_items="center", wrap=False).classes("gap-3") as view:    
-        if bean.categories: render_bean_attribute(f"🏷️ {bean.categories[0]}", create_page_target('/categories', bean.categories[0]))           
-        if bean.regions: render_bean_attribute(f"📍 {bean.regions[0]}", create_page_target('/regions', bean.regions[0]))
+        if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_page_target('/categories', bean.categories[0]))           
+        if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_page_target('/regions', bean.regions[0]))
     return view
 
 def render_bean_stats(context: Context, bean: Bean): 
     with ui.row(align_items="center", wrap=False).classes("gap-3") as view:    
-        if bean.comments: render_bean_attribute(f"💬 {humanize.intword(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
-        if bean.likes: render_bean_attribute(f"👍 {humanize.intword(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares and bean.shares > 1: render_bean_attribute(f"🔗 {humanize.intword(bean.shares)}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
-        if bean.related: render_bean_attribute(f"🗞️ {bean.related}", create_navigation_target('/related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
+        if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
+        if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
+        if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
+        if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_navigation_target('/related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
     return view
 
 def render_bean_body(context: Context, bean: Bean):
@@ -476,12 +485,17 @@ def render_bean_body(context: Context, bean: Bean):
         render_bean_actions(context, bean).classes(STRETCH_FIT)
     return view
 
+render_entity_as_chip = lambda tag, navigable = True: ui.chip(
+    tag, 
+    on_click=(lambda: navigate_to(create_page_target("/entities", tag)) if navigable else None)
+).props("square")
+
+render_entity_as_link = lambda tag: ui.link(tag, target=create_page_target("/entities", tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
+
 def render_bean_entities(context: Context, bean: Bean):
-    make_tag = lambda tag: ui.link(tag, target=create_page_target("/entities", tag)).classes("tag q-mr-md").style("color: secondary; text-decoration: none;")
-    # make_tag = lambda tag: render_bean_attribute(tag, create_page_target("/entities", tag))
-    with ui.row(wrap=True, align_items="baseline").classes("w-full gap-0 m-0 p-0 text-caption") as view:
+    with ui.row(wrap=True, align_items="baseline").classes("gap-0 m-0 p-0 text-caption") as view:
         list(map(
-            make_tag, 
+            render_entity_as_link, 
             random.sample(bean.entities, min(config.filters.bean.max_entities, len(bean.entities)))
         ))
     return view

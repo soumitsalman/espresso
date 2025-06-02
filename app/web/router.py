@@ -146,8 +146,8 @@ def validate_bean(url: str) -> Page:
     return bean
 
 def validate_generated_bean(bean_id: str) -> Page:
-    bean = db.get_bean(bean_id, project={K_EMBEDDING: 0})
-    if not bean or bean.kind != GENERATED: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
+    bean = beanops.get_generated_bean(bean_id)
+    if not bean: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
     return bean
 
 def validate_doc(doc_id: str):
