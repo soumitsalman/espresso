@@ -84,7 +84,7 @@ def search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|lis
     # if tags or sources: return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=LATEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
+def get_related_beans(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     filter = create_filter(kind, tags, sources, None, last_ndays, None)
     return db.query_related_beans(url=url, filter=filter, sort_by=sort_by, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
 
@@ -105,6 +105,11 @@ def count_search_beans(query: str, accuracy: float, kind: str, tags: str|list[st
     if query: return db.count_vector_search_beans(embedding=embedder.embed_query(query), similarity_score=accuracy, filter=filter, limit=limit)  
     # if tags or sources: return db.count_beans(filter=filter, group_by=K_CLUSTER_ID, limit=limit)
     return 0
+
+@cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
+def count_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int):
+    filter = create_filter(kind, tags, sources, None, last_ndays, None)
+    return db.count_related_beans(url=url, filter=filter, limit=limit) 
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_filter_tags_for_stored_page(page: Page, last_ndays: int, start: int, limit: int):
@@ -168,7 +173,7 @@ def is_bookmarked(context: Context, url: str):
     return db.is_bookmarked(context.user, url)
 
 def create_filter(
-    kind: str,
+    kind: str|list[str],
     tags: str|list[str]|list[list[str]],
     sources: str|list[str],
     urls: str|list[str],
@@ -180,7 +185,7 @@ def create_filter(
         K_GIST: {"$exists": True},
         K_CLUSTER_ID: {"$exists": True}
     }
-    if kind: filter[K_KIND] = kind
+    if kind: filter[K_KIND] = lower_case(kind)
     if sources: filter["$or"] = [
         {K_SOURCE: case_insensitive(sources)},
         {K_SHARED_IN: case_insensitive(sources)}

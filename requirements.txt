@@ -1,7 +1,6 @@
 optimum[onnxruntime]
 nicegui
 fastapi[standard]
-fastmcp
 slowapi
 authlib
 starlette

@@ -141,7 +141,7 @@ def validate_page(page_id: str) -> Page:
     return stored_page
 
 def validate_bean(url: str) -> Page:
-    bean = db.get_bean(url, project={K_URL: 1, K_TITLE: 1, K_ENTITIES: 1, K_CATEGORIES: 1, K_REGIONS: 1})
+    bean = db.get_bean(url, project={K_CONTENT: 0})
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
     return bean
 
