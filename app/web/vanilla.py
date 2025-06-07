@@ -259,7 +259,7 @@ async def render_search(context: Context):
         ).classes("w-full")
         render_search_result()
     
-    render_footer()
+    render_footer(context)
 
 async def render_registration(context: Context):
     userinfo = context.user

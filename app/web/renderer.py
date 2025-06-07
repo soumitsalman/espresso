@@ -486,10 +486,10 @@ def render_all_bean_attributes(context: Context, bean: Bean):
         if bean.author: render_attribute_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[15ch]")    
         if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]))         
         if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]))
-        if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
+        # if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
         if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
+        if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
     return view
 
 def render_bean_body(context: Context, bean: Bean):
