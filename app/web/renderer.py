@@ -31,7 +31,7 @@ PRIMARY_COLOR = "#4e392a"
 SECONDARY_COLOR = "#b79579"
 IMAGE_DIMENSIONS = "w-32"
 STRETCH_FIT = "w-full h-full m-0 p-0"
-ACTION_BUTTON_PROPS = "flat size=sm"
+ACTION_BUTTON_PROPS = "flat size=sm no-caps color=secondary"
 TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=primary"
 SEARCH_BAR_PROPS = "item-aligned standout clearable clear-icon=close maxlength=1000 rounded"
 BEANS_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 bg-transparent"
@@ -366,7 +366,7 @@ def render_bean_with_related(context: Context, bean: Bean):
     async def on_read():
         nonlocal related_beans
         if related_beans: return
-        related_beans = await run.io_bound(beanops.get_related_beans, url=bean.url, kind=None, tags=None, sources=None, last_ndays=None, sort_by=None, start=0, limit=config.filters.bean.max_related)
+        related_beans = await run.io_bound(beanops.get_beans_in_cluster, url=bean.url, kind=None, tags=None, sources=None, last_ndays=None, start=0, limit=config.filters.bean.max_related)
         if not related_beans: return
         with carousel:
             for item in related_beans:
@@ -423,7 +423,7 @@ def render_bean_header(context: Context, bean: Bean):
         if bean.image_url: ui.image(bean.image_url).classes(IMAGE_DIMENSIONS)
         with ui.element().classes("w-full"):
             ui.label(bean.title).classes("bean-title")  
-            render_all_bean_attributes(context, bean).classes("m-0")
+            render_bean_attributes(context, bean).classes("gap-2 q-my-xs")
             # render_bean_source_attributes(context, bean).classes("my-1")
             # render_bean_stats_and_classification(context, bean)
     return view
@@ -434,12 +434,12 @@ def render_attribute_as_chip(title, target=None):
     with ui.chip(
         color="transparent", 
         on_click=(lambda: nav(target)) if target else None
-    ).props("dense flat").classes("m-0 text-caption max-w-[25ch]").tooltip(title) as view:
+    ).props("dense flat").classes("ml-0 mr-2 my-0 p-0 text-caption max-w-[25ch]").tooltip(title) as view:
         ui.label(title).classes("ellipsis")
     return view
 
 def render_bean_source_attributes(context: Context, bean: Bean):
-    with ui.row(align_items="center", wrap=False).classes("gap-2") as view:
+    with ui.row(align_items="center", wrap=False)as view:
         render_attribute_as_chip(naturalday(bean.created))
         render_attribute_as_chip(bean.site_name or bean.source, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
         if bean.author: render_attribute_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[12ch]")
@@ -456,31 +456,32 @@ def render_bean_source_attributes(context: Context, bean: Bean):
     # return view
 
 def render_bean_stats_and_classification(context: Context, bean: Bean): 
-    with ui.row(align_items="center").classes("gap-2") as view:    
+    with ui.row(align_items="center") as view:    
         if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]))         
         if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]))
-        if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
+        # if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
         if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
+        if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
     return view
 
 def render_bean_classification(context: Context, bean: Bean): 
-    with ui.row(align_items="center", wrap=False).classes("gap-3") as view:    
+    with ui.row(align_items="center", wrap=False) as view:    
         if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]))           
         if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]))
     return view
 
 def render_bean_stats(context: Context, bean: Bean): 
-    with ui.row(align_items="center", wrap=False).classes("gap-3") as view:    
+    with ui.row(align_items="center", wrap=False) as view:    
         if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
         if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
-        if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
+        # if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
     return view
 
-def render_all_bean_attributes(context: Context, bean: Bean):
-    with ui.row(align_items="center").classes("gap-2") as view:
+def render_bean_attributes(context: Context, bean: Bean):
+    """Renders all bean attributes including publish date, source, author, categories, regions etc."""
+    with ui.row(align_items="center") as view:
         render_attribute_as_chip(naturalday(bean.created))
         render_attribute_as_chip(bean.site_name or bean.source, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
         if bean.author: render_attribute_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[15ch]")    
@@ -496,15 +497,14 @@ def render_bean_body(context: Context, bean: Bean):
     with ui.column(align_items="stretch").classes("w-full m-0 p-0") as view:
         if bean.entities: render_bean_entities(context, bean)
         if bean.summary: ui.markdown(bean.summary).classes("bean-body truncate-multiline")
-        ui.link("Read More ...", bean.url if bean.kind != GENERATED else create_target('articles', bean.url), new_tab=True).on("click", lambda : context.log("opened", url=bean.url))
         render_bean_actions(context, bean).classes(STRETCH_FIT)
     return view
 
-def render_entities_as_chips(context: Context, bean: Bean):
+def render_bean_entities_as_chips(context: Context, bean: Bean):
     as_chip = lambda tag: ui.chip(
         tag, 
         on_click=lambda tag=tag: internal_nav('entities', tag)
-    ).props("square").classes("max-w-[30ch]")
+    ).classes("max-w-[30ch]")
 
     with ui.row(wrap=True, align_items="baseline").classes("gap-1") as view:
         list(map(
@@ -531,6 +531,11 @@ def render_bean_entities(context: Context, bean: Bean):
 def render_bean_actions(context: Context, bean: Bean): 
     bug_report = render_report_a_bug()
 
+    async def open_read():
+        context.log("opened", url=bean.url)
+        if bean.kind == GENERATED: internal_nav("articles", bean.url)
+        else: nav(bean.url, new_tab=True)
+
     async def show_bug_report():
         issue = await bug_report
         if issue: context.log("reported", url=bean.url, bug=issue)
@@ -540,26 +545,27 @@ def render_bean_actions(context: Context, bean: Bean):
             SwitchButton(
                 beanops.is_bookmarked(context, bean.url), 
                 unswitched_icon="bookmark_outlined", switched_icon="bookmark", 
-                color="secondary",
                 on_click=lambda: toggle_bookmark(context, bean)
             ) \
                 .props(ACTION_BUTTON_PROPS) \
                 .tooltip(tooltip_msg(context, "Bookmark")) \
                 .set_enabled(context.is_registered)
             
-            # ui.button(
-            #     icon="bug_report", 
-            #     color="secondary", 
-            #     on_click=show_bug_report
-            # ) \
-            #     .props(ACTION_BUTTON_PROPS) \
-            #     .tooltip(tooltip_msg(context, "Report Bug")) \
-            #     .set_enabled(context.is_registered)
+            ui.button(
+                icon="bug_report", 
+                color="secondary", 
+                on_click=show_bug_report
+            ) \
+                .props(ACTION_BUTTON_PROPS) \
+                .tooltip(tooltip_msg(context, "Report Bug")) \
+                .set_enabled(context.is_registered)
 
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
             # ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_source(bean.source)).props(ACTION_BUTTON_PROPS).tooltip("More from this channel")
-            ui.button(icon="search", color="secondary", on_click=lambda: internal_nav("search", q=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
-            with ui.button(icon="share", color="secondary").props(ACTION_BUTTON_PROPS):
+            # icon = "auto_stories" "read_more" "eyeglasses"
+            ui.button(icon="auto_stories", on_click=open_read).props(ACTION_BUTTON_PROPS).tooltip("Read the full article") 
+            ui.button(icon="search", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            with ui.button(icon="share").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):
                         render_share_button(context, bean, "https://www.reddit.com/submit", REDDIT_ICON).tooltip("Share on Reddit")

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, Path, Query
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, FileResponse, PlainTextResponse
+from starlette.responses import RedirectResponse, FileResponse
 from authlib.integrations.starlette_client import OAuth
 from nicegui import ui, app
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -141,7 +141,7 @@ def validate_page(page_id: str) -> Page:
     return stored_page
 
 def validate_bean(url: str) -> Page:
-    bean = db.get_bean(url, project={K_CONTENT: 0})
+    bean = db.get_bean(url, project={**beanops.BEAN_HEADER_FIELDS, **beanops.BEAN_BODY_FIELDS})
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
     return bean
 

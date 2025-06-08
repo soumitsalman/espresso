@@ -1,4 +1,5 @@
-optimum[onnxruntime]
+llama-cpp-python
+llama-index
 fastapi[standard]
 fastmcp
 slack-bolt

@@ -33,7 +33,7 @@ def load_bean_body(bean: Bean):
     return bean
 
 def get_generated_bean(url: str):
-    bean = db.beanstore.find_one(filter={K_ID: url, K_KIND: GENERATED}, projection={K_EMBEDDING: 0})
+    bean = db.beanstore.find_one(filter={K_ID: url, K_KIND: GENERATED}, projection={K_EMBEDDING: 0, K_CONTENT: 0})
     if bean: return GeneratedBean(**bean)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
@@ -68,26 +68,30 @@ def get_generated_beans(page: Page, tags, last_ndays: int, start: int, limit: in
     )
     return db.sample_beans(filter=filter, sort_by=NEWEST, limit=limit, project=BEAN_HEADER_FIELDS)   
 
-@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
+# @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_custom_page(kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
 
-@cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
+# @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if is_valid_url(query): return db.vector_search_similar_beans(query, accuracy, filter, None, start, limit, BEAN_HEADER_FIELDS)
     if query: return db.vector_search_beans(embedding=embedder.embed_query(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
-    # if tags or sources: return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=LATEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+
+# @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
+def get_related_beans(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
+    filter=create_filter(kind, tags, sources, None, last_ndays, None)
+    accuracy = config.filters.page.default_accuracy
+    return db.vector_search_similar_beans(url, accuracy, filter, None, start, limit, BEAN_HEADER_FIELDS)
+
+def get_beans_in_cluster(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
+    filter = create_filter(kind, tags, sources, None, last_ndays, None)
+    return db.query_beans_in_cluster(url=url, filter=filter, sort_by=None, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_related_beans(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
-    filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_related_beans(url=url, filter=filter, sort_by=sort_by, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_BODY_FIELDS}) 
-
 def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
     filter=create_filter_for_generated_bean(page, tags, last_ndays)
     if page and page.query_embedding: return db.count_vector_search_beans(
@@ -97,19 +101,18 @@ def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
     )
     return db.count_beans(filter=filter, limit=limit)  
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+# @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def count_search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int) -> int:
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if is_valid_url(query): return db.count_vector_search_similar_beans(query, accuracy, filter=filter, group_by=None, limit=limit)
     if query: return db.count_vector_search_beans(embedding=embedder.embed_query(query), similarity_score=accuracy, filter=filter, limit=limit)  
-    # if tags or sources: return db.count_beans(filter=filter, group_by=K_CLUSTER_ID, limit=limit)
     return 0
 
-@cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def count_related_beans(url: str, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int):
-    filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.count_related_beans(url=url, filter=filter, limit=limit) 
+# @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
+def count_related_beans(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int):
+    filter=create_filter(kind, tags, sources, None, last_ndays, None)
+    accuracy = config.filters.page.default_accuracy
+    return db.count_vector_search_similar_beans(url, accuracy, filter=filter, group_by=None, limit=limit)
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_filter_tags_for_stored_page(page: Page, last_ndays: int, start: int, limit: int):
@@ -130,14 +133,14 @@ def get_filter_tags_for_custom_page(tags: str|list[str]|list[list[str]], sources
     filter=create_filter(None, tags, sources, None, last_ndays, None)
     return db.query_tags(bean_filter=filter, tag_field=K_ENTITIES, remove_tags=tags, skip=start, limit=limit)
 
-@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+# @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def search_filter_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
     filter=create_filter(None, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
     
-    if is_valid_url(query): 
-        bean = db.get_bean(query, project = {K_ENTITIES: 1, K_URL: 1})
-        return bean.entities if bean else None
+    # if is_valid_url(query): 
+    #     bean = db.get_bean(query, project = {K_ENTITIES: 1, K_URL: 1})
+    #     return bean.entities if bean else None
 
     if query: return db.vector_search_tags(
         bean_embedding=embedder.embed_query(query), 

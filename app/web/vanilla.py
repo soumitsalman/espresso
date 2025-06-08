@@ -15,7 +15,7 @@ MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 async def render_home(context: Context):
     context.last_ndays = 1
 
-    render_banner(HOME_BANNER_TEXT) 
+    render_banner("Today's Briefings") 
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
@@ -31,7 +31,7 @@ async def render_home(context: Context):
     _render_page_frame(
         context,
         (lambda: _render_generated_beans_panel(context)) if has_generated else None,
-        lambda: _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
+        lambda: _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter, "Today's Feeds")
     )
 
 # async def render_trending_snapshot(user):
@@ -114,14 +114,13 @@ async def render_related_beans_page(context: Context):
         # if bean.categories: render_entities_as_chips(bean.entities)
         # if bean.regions: render_entities_as_chips(bean.regions)
 
-
     with ui.item().classes("w-full"):
         if bean.image_url: 
             with ui.item_section().props("top side"):
                 ui.image(bean.image_url)
         with ui.item_section().props("top"):
             if bean.summary: ui.markdown(bean.summary).classes("truncate-multiline")
-    if bean.entities: render_entities_as_chips(context, bean)
+    if bean.entities: render_bean_entities_as_chips(context, bean)
     render_thick_separator()
     
     has_related = beanops.count_related_beans(bean.url, kind=[NEWS, BLOG], tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
@@ -145,7 +144,7 @@ async def render_generated_bean_page(context: Context):
     if bean.predictions: 
         ui.label("Predictions").classes("text-h6")
         ui.markdown("\n".join(bean.predictions))
-    if bean.entities: render_entities_as_chips(context, bean)
+    if bean.entities: render_bean_entities_as_chips(context, bean)
     render_thick_separator()
 
     has_related = beanops.count_related_beans(bean.url, kind=[NEWS, BLOG], tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
@@ -167,7 +166,8 @@ def _render_filterable_beans_panel(
     context: Context, 
     retrieve_beans_func: Callable, 
     get_filter_tags: Callable = None,
-    apply_filter_func: Callable = None
+    apply_filter_func: Callable = None,
+    banner: str = None
 ):
     context.kind, context.sort_by = config.filters.page.default_kind, SORT_BY_OPTIONS[config.filters.page.default_sort_by] # starting default values
 
@@ -186,6 +186,7 @@ def _render_filterable_beans_panel(
         if kwargs and apply_filter_func: context = apply_filter_func(context, **kwargs)
         render_beans_panel.refresh(context)
 
+    if banner: ui.label(banner).classes("text-h6")
     # kind and sort by filter panel
     if retrieve_beans_func:
         with ui.row(wrap=False, align_items="stretch").classes("w-full justify-between md:justify-start"):
@@ -198,7 +199,7 @@ def _render_filterable_beans_panel(
         load_items=get_filter_tags, 
         on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
     ).classes("w-full")
-
+        
     if retrieve_beans_func: render_beans_panel(context)
 
 def _render_generated_beans_panel(context: Context):
@@ -212,15 +213,15 @@ def _render_generated_beans_panel(context: Context):
 def _render_related_beans_panel(context: Context, bean: Bean):
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_related_beans(bean.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
-        
+        return beanops.get_related_beans(bean.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=start, limit=limit)
+
     get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
     
-    _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter)
+    _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter, "🗞️ Related News & Blogs")
 
 async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.page.default_kind

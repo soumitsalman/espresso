@@ -1,4 +1,5 @@
-optimum[onnxruntime]
+llama-cpp-python
+llama-index
 nicegui
 fastapi[standard]
 slowapi
