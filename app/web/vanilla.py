@@ -106,61 +106,52 @@ async def render_custom_page(context: Context):
     )
 
 async def render_related_beans_page(context: Context):
-    bean = context.page
+    url = context.page.url
     context.last_ndays = config.filters.page.default_window
 
-    with render_banner(bean.title):
-        pass
-        # if bean.categories: render_entities_as_chips(bean.entities)
-        # if bean.regions: render_entities_as_chips(bean.regions)
+    render_header(context)
+    with ui.column(align_items="stretch").classes("w-full") as holder:
+        render_skeleton_beans(1)
+        ui.skeleton(type='rect', width="100%", height="5px")
+        render_skeleton_beans(2)
+    render_footer(context)
 
-    with ui.item().classes("w-full"):
-        if bean.image_url: 
-            with ui.item_section().props("top side"):
-                ui.image(bean.image_url)
-        with ui.item_section().props("top"):
-            if bean.summary: ui.markdown(bean.summary).classes("truncate-multiline")
-    if bean.entities: render_bean_entities_as_chips(context, bean)
-    render_thick_separator()
-    
-    has_related = beanops.count_related_beans(bean.url, kind=[NEWS, BLOG], tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
-    _render_page_frame(
-        context,
-        (lambda: _render_related_beans_panel(context, bean)) if has_related else None
-    )
+    async def render():
+        bean = await run.io_bound(db.get_bean, url=url, project=beanops.BEAN_RENDERABLE_FIELDS)
+        has_related = await run.io_bound(beanops.count_related_beans, url=url, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
+        holder.clear()
+        with holder:
+            render_whole_bean(context, bean)
+            if has_related:
+                render_thick_separator()
+                _render_related_beans_panel(context, bean)
+
+    background_tasks.create(render(), name=f"render-whole-bean-{url}-{now()}")
+    return holder
 
 async def render_generated_bean_page(context: Context):
-    bean = context.page
+    url = context.page.url
     context.last_ndays = config.filters.page.default_window
 
-    with render_banner(bean.title):
-        ui.chip("AI Generated").props("square").classes("q-mx-sm")
-
-    if bean.verdict: ui.markdown("\n".join(["> "+v for v in bean.verdict]))    
-    if bean.analysis: ui.markdown("\n".join(bean.analysis))
-    if bean.insights:   
-        ui.label("Insights").classes("text-h6")
-        ui.markdown("\n".join(bean.insights))
-    if bean.predictions: 
-        ui.label("Predictions").classes("text-h6")
-        ui.markdown("\n".join(bean.predictions))
-    if bean.entities: render_bean_entities_as_chips(context, bean)
-    render_thick_separator()
-
-    has_related = beanops.count_related_beans(bean.url, kind=[NEWS, BLOG], tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
-    _render_page_frame(
-        context,
-        (lambda: _render_related_beans_panel(context, bean)) if has_related else None
-    )
-
-def _render_page_frame(context: Context, *additional_panels):
-    render_header(context)  
-    for render in additional_panels: 
-        if not render: continue
-        render()
-        render_thick_separator()
-    render_similar_pages(context)
+    render_header(context)
+    with ui.column(align_items="stretch").classes("w-full") as holder:
+        render_skeleton_beans(1)
+        ui.skeleton(type='rect', width="100%", height="5px")
+        render_skeleton_beans(2)
     render_footer(context)
+
+    async def render():
+        bean = await run.io_bound(db.get_bean, url=url, project=beanops.BEAN_RENDERABLE_FIELDS)
+        has_related = await run.io_bound(beanops.count_related_beans, url=url, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
+        holder.clear()
+        with holder:
+            render_generated_bean(context, bean)
+            if has_related: 
+                render_thick_separator()
+                _render_related_beans_panel(context, bean)
+
+    background_tasks.create(render(), name=f"render-generated-bean-{url}-{now()}")
+    return holder
 
 def _render_filterable_beans_panel(
     context: Context, 
@@ -189,26 +180,27 @@ def _render_filterable_beans_panel(
     if banner: ui.label(banner).classes("text-h6")
     # kind and sort by filter panel
     if retrieve_beans_func:
-        with ui.row(wrap=False, align_items="stretch").classes("w-full justify-between md:justify-start"):
+        with ui.row(wrap=True, align_items="stretch").classes("w-full justify-between sm:justify-start"):
             render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
             render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
 
-    # topic filter panel
-    if get_filter_tags: render_filter_tags(
-        context,
-        load_items=get_filter_tags, 
-        on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-    ).classes("w-full")
+            # topic filter panel
+            if get_filter_tags: render_filter_tags(
+                context,
+                load_items=get_filter_tags, 
+                on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+            ).classes("w-full lg:w-auto")
         
     if retrieve_beans_func: render_beans_panel(context)
 
 def _render_generated_beans_panel(context: Context):
     page = context.page if context.is_stored_page else None
-    render_beans(
-        context,
-        lambda: beanops.get_generated_beans(page, tags=context.tags, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_beans),
-        render_grid()
-    )
+
+    def retrieve_beans(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_generated_beans(page, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
+    
+    render_beans_as_extendable_list(context, retrieve_beans).classes("w-full")
     
 def _render_related_beans_panel(context: Context, bean: Bean):
     def retrieve_beans(start, limit):
@@ -222,6 +214,15 @@ def _render_related_beans_panel(context: Context, bean: Bean):
         return context
     
     _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter, "🗞️ Related News & Blogs")
+
+def _render_page_frame(context: Context, *additional_panels):
+    render_header(context)  
+    for render in additional_panels: 
+        if not render: continue
+        render()
+        render_thick_separator()
+    render_similar_pages(context)
+    render_footer(context)
 
 async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.page.default_kind
@@ -251,13 +252,14 @@ async def render_search(context: Context):
     render_search_controls(context).classes("w-full")
     
     if context.query:
-        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
-         
-        render_filter_tags(
-            context,
-            load_items=lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags), 
-            on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
-        ).classes("w-full")
+        with ui.row(wrap=True, align_items="stretch").classes("w-full"):
+            render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
+            
+            render_filter_tags(
+                context,
+                load_items=lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags), 
+                on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
+            ).classes("w-full lg:w-auto")
         render_search_result()
     
     render_footer(context)

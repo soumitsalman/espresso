@@ -155,8 +155,8 @@ def render_user(user: User):
                 ui.label(user.name)
             ui.separator()
                         
-            if beanops.db.get_barista(user.email):
-                with ui.menu_item(on_click=lambda: internal_nav(user.email)):
+            if beanops.get_page(user.email):
+                with ui.menu_item(on_click=lambda: internal_nav("pages", user.email)):
                     ui.icon("bookmarks", size="md").classes("q-mr-md")
                     with ui.label("Bookmarks"):
                         ui.label("/baristas/"+user.email).classes("text-caption")
@@ -264,7 +264,7 @@ def render_page_names_as_list(context: Context, baristas: list[Page]):
     return holder 
 
 def render_page_banner(context: Context):
-    if context.page_type == "stored_page": banner_text = f"☕ {context.page.title}"
+    if context.page_type == "stored_page": banner_text = context.page.title
     elif context.page_type == K_CATEGORIES: banner_text = f"🏷️ {context.page}"
     elif context.page_type == K_REGIONS: banner_text = f"📍 {context.page}"
     elif context.page_type == K_RELATED: banner_text = f"🗞️ {context.page.title}"
@@ -273,7 +273,7 @@ def render_page_banner(context: Context):
 
     with render_banner(banner_text) as view:
         if context.is_stored_page:
-            with ui.button(icon="more_vert").props("flat").classes("q-ml-md"):
+            with ui.button(icon="more_vert").props("flat size=sm padding=none").classes("q-ml-md"):
                 with ui.menu():  
                     # with ui.item("Public"):
                     #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
@@ -361,7 +361,7 @@ def render_bean_with_related(context: Context, bean: Bean):
 
     def render_bean_as_slide(item: Bean, expanded: bool, on_read: Callable):
         with ui.carousel_slide(item.url).classes("w-full m-0 p-0 no-wrap"):
-            render_bean(context, item, expanded, on_read)
+            render_bean_snapshot(context, item, expanded, on_read)
 
     async def on_read():
         nonlocal related_beans
@@ -409,14 +409,41 @@ def render_expandable_bean(context: Context, bean: Bean, expanded: bool = False,
     return expansion
 
 def render_whole_bean(context: Context, bean: Bean):
-    with ui.column(align_items="stretch") as view:
-        render_bean_header(context, bean).classes(add="q-mb-sm")
-        render_bean_body(context, bean)
-    return view 
+    with ui.element() as view:
+        render_banner(bean.title)
+        render_bean_attributes(context, bean, truncate=False).classes("gap-2 q-my-xs")
+                
+        with ui.row(align_items="stretch", wrap=False).classes("q-my-sm"):
+            if bean.image_url: ui.image(bean.image_url).classes("lg:w-1/3 rounded-borders")
+            render_bean_body(context, bean, show_actions=False)
+    return view
 
-def render_bean(context, bean, expanded: bool = False, on_expanded = None):
-    if config.rendering.bean.body == "whole": return render_whole_bean(context, bean)
-    return render_expandable_bean(context, bean, expanded, on_expanded)
+def render_generated_bean(context: Context, bean: GeneratedBean):
+    with ui.element() as view:
+        with render_banner(bean.title):
+            ui.chip("AI Generated").props("square").classes("q-mx-sm")
+        render_bean_attributes(context, bean, truncate=False).classes("gap-2 q-my-xs")        
+
+        with ui.row(align_items="stretch", wrap=False).classes("q-my-sm"):
+            if bean.image_url: ui.image(bean.image_url).classes("rounded-borders")
+            if bean.verdict: ui.markdown("\n".join(["> "+v for v in bean.verdict if v]))  
+
+        if bean.analysis: [ui.markdown(line) for line in bean.analysis if line]
+        if bean.insights:   
+            ui.label("Insights").classes("text-bold")
+            [ui.markdown(line) for line in bean.insights if line]
+        if bean.predictions: 
+            ui.label("Predictions").classes("text-bold")
+            [ui.markdown(line) for line in bean.predictions if line]
+
+        if bean.entities: render_bean_entities_as_chips(context, bean)
+    return view
+
+# def render_bean(context, bean, expanded: bool = False, on_expanded = None):
+#     if config.rendering.bean.body == "whole": return render_whole_bean(context, bean)
+#     return render_expandable_bean(context, bean, expanded, on_expanded)
+
+render_bean_snapshot = render_expandable_bean
 
 def render_bean_header(context: Context, bean: Bean):
     with ui.row(wrap=False, align_items="stretch").classes("w-full bean-header") as view:            
@@ -430,11 +457,13 @@ def render_bean_header(context: Context, bean: Bean):
 
 render_attribute_as_link = lambda prefix, title, target: ui.markdown((f"{prefix} " if prefix else "")+f"[{title}]({target})").classes("max-w-[25ch] ellipsis")
 
-def render_attribute_as_chip(title, target=None): 
+def render_attribute_as_chip(title, target=None, max_width: str = "25ch"): 
+    classes = "ml-0 mr-2 my-0 p-0 text-caption"
+    if max_width: classes += f" max-w-[{max_width}]"
     with ui.chip(
         color="transparent", 
         on_click=(lambda: nav(target)) if target else None
-    ).props("dense flat").classes("ml-0 mr-2 my-0 p-0 text-caption max-w-[25ch]").tooltip(title) as view:
+    ).props("dense flat").classes(classes).tooltip(title) as view:
         ui.label(title).classes("ellipsis")
     return view
 
@@ -476,39 +505,34 @@ def render_bean_stats(context: Context, bean: Bean):
         if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
         if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
         if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
-        # if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
     return view
 
-def render_bean_attributes(context: Context, bean: Bean):
+def render_bean_attributes(context: Context, bean: Bean, truncate: bool = True):
     """Renders all bean attributes including publish date, source, author, categories, regions etc."""
+    max_width = "25ch" if truncate else None
     with ui.row(align_items="center") as view:
-        render_attribute_as_chip(naturalday(bean.created))
-        render_attribute_as_chip(bean.site_name or bean.source, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
-        if bean.author: render_attribute_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[15ch]")    
-        if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]))         
-        if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]))
-        # if bean.related: render_attribute_as_chip(f"🗞️ {bean.related}", create_target('related', url=bean.url)).tooltip(f"{bean.related} related article(s)")
-        if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}").tooltip(f"{bean.comments} comments across various social media sources")
-        if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}").tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
+        render_attribute_as_chip(naturalday(bean.created), max_width=max_width)
+        render_attribute_as_chip(bean.site_name or bean.source, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
+        if bean.author: render_attribute_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
+        if bean.categories: render_attribute_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]), max_width=max_width)         
+        if bean.regions: render_attribute_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]), max_width=max_width)
+        if bean.comments: render_attribute_as_chip(f"💬 {naturalnum(bean.comments)}", max_width=max_width).tooltip(f"{bean.comments} comments across various social media sources")
+        if bean.likes: render_attribute_as_chip(f"👍 {naturalnum(bean.likes)}", max_width=max_width).tooltip(f"{bean.likes} likes across various social media sources")
+        if bean.shares and bean.shares > 1: render_attribute_as_chip(f"🔗 {bean.shares}", max_width=max_width).tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
     return view
 
-def render_bean_body(context: Context, bean: Bean):
-    with ui.column(align_items="stretch").classes("w-full m-0 p-0") as view:
+def render_bean_body(context: Context, bean: Bean, show_actions: bool = True):
+    with ui.column(align_items="stretch").classes("w-full h-full") as view:
         if bean.entities: render_bean_entities(context, bean)
         if bean.summary: ui.markdown(bean.summary).classes("bean-body truncate-multiline")
-        render_bean_actions(context, bean).classes(STRETCH_FIT)
+        if show_actions: render_bean_actions(context, bean).classes(STRETCH_FIT)
+        else: ui.link("Read More ...", bean.url, new_tab=True).tooltip(f"Read the full article in {bean.site_name or bean.site_base_url}")
     return view
 
 def render_bean_entities_as_chips(context: Context, bean: Bean):
-    as_chip = lambda tag: ui.chip(
-        tag, 
-        on_click=lambda tag=tag: internal_nav('entities', tag)
-    ).classes("max-w-[30ch]")
-
     with ui.row(wrap=True, align_items="baseline").classes("gap-1") as view:
         list(map(
-            as_chip, 
+            lambda tag: ui.chip(tag, on_click=lambda tag=tag: internal_nav('entities', tag)), 
             random.sample(bean.entities, min(config.filters.page.max_tags, len(bean.entities)))
         ))
     return view
@@ -557,14 +581,13 @@ def render_bean_actions(context: Context, bean: Bean):
                 on_click=show_bug_report
             ) \
                 .props(ACTION_BUTTON_PROPS) \
-                .tooltip(tooltip_msg(context, "Report Bug")) \
-                .set_enabled(context.is_registered)
+                .tooltip(tooltip_msg(context, "Report Bug"))
+                # .set_enabled(context.is_registered)
 
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
-            # ui.button(icon="rss_feed", color="secondary", on_click=lambda: navigate_to_source(bean.source)).props(ACTION_BUTTON_PROPS).tooltip("More from this channel")
             # icon = "auto_stories" "read_more" "eyeglasses"
             ui.button(icon="auto_stories", on_click=open_read).props(ACTION_BUTTON_PROPS).tooltip("Read the full article") 
-            ui.button(icon="search", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            if bean.kind != GENERATED: ui.button(icon="search", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
             with ui.button(icon="share").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):
@@ -582,7 +605,7 @@ def render_report_a_bug():
             ui.label("Don't like it? Report it!")
         with ui.row():
             ui.button("Category/Scope WTF", on_click=lambda: dialog.submit("Category/Scope WTF"))
-            ui.button("Summary/Title WTF", on_click=lambda: dialog.submit("Summary/Title WTF"))
+            # ui.button("Summary/Title WTF", on_click=lambda: dialog.submit("Summary/Title WTF"))
             ui.button("Ugly AF", on_click=lambda: dialog.submit("Ugly AF"))
         other_text = ui.input(placeholder="Cry me a river").props("standout").classes("w-full")
         with ui.row(wrap=False).classes("self-end"):
@@ -703,7 +726,7 @@ def _create_navigation_baristas(context: Context):
         {
             "icon": "web_stories", # local_cafe_outlined # newsstand # web_stories # bookmarks # browse
             "label": "Following",
-            "items": beanops.get_following_pages(context.user) if context.is_registered else None
+            "items": db.get_following_pages(context.user, beanops.PAGE_DEFAULT_FIELDS) if context.is_registered else None
         },
         {
             "icon": "label_outlined",

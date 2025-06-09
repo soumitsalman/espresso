@@ -22,8 +22,8 @@ from slowapi.util import get_ipaddr
 REGISTRATION_INFO_KEY = "registration_info"
 
 JWT_TOKEN_KEY = 'espressotoken'
-JWT_TOKEN_LIFETIME = timedelta(days=30) # TODO: change this later to 30 days
-JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1) # TODO: change this later to 5 minutes
+JWT_TOKEN_LIFETIME = timedelta(days=30)
+JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1)
 
 LIMIT_5_A_MINUTE = "5/minute"
 LIMIT_10_A_MINUTE = "10/minute"
@@ -72,11 +72,12 @@ def create_jwt_token(email: str):
         "iat": datetime.now(),
         "exp": jwt_token_exp()
     }
-    return jwt.encode(data, config.app.storage_secret, algorithm="HS256")
+    
+    return jwt.encode(data, os.getenv('APP_STORAGE_SECRET'), algorithm="HS256")
 
 def decode_jwt_token(token: str):
     try:
-        data = jwt.decode(token, config.app.storage_secret, algorithms=["HS256"], verify=True)
+        data = jwt.decode(token, os.getenv('APP_STORAGE_SECRET'), algorithms=["HS256"], verify=True)
         return data if (data and "email" in data) else None
     except Exception as err:
         log("jwt_token_decode_error", user_id=app.storage.browser.get("id"), error=str(err))
@@ -101,7 +102,7 @@ def initialize_server():
     oauth.register(
         "slack",
         client_id=os.getenv('SLACK_CLIENT_ID'),
-            client_secret=os.getenv('SLACK_CLIENT_SECRET'),  
+        client_secret=os.getenv('SLACK_CLIENT_SECRET'),  
         server_metadata_url=SLACK_SERVER_METADATA_URL,
         authorize_url=SLACK_AUTHORIZE_URL,
         access_token_url=SLACK_ACCESS_TOKEN_URL,
@@ -141,12 +142,12 @@ def validate_page(page_id: str) -> Page:
     return stored_page
 
 def validate_bean(url: str) -> Page:
-    bean = db.get_bean(url, project={**beanops.BEAN_HEADER_FIELDS, **beanops.BEAN_BODY_FIELDS})
+    bean = db.get_bean(url=url, project={K_URL: 1})
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
     return bean
 
 def validate_generated_bean(bean_id: str) -> Page:
-    bean = beanops.get_generated_bean(bean_id)
+    bean = db.get_bean(url=bean_id, kind=GENERATED, project={K_URL: 1})
     if not bean: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
     return bean
 
@@ -189,12 +190,14 @@ def create_context(page_id: str|Page|Bean, request: Request, page_type: str = No
     return Context(page_id, user, page_type)
 
 def login_user(user: dict|User):
-    email = user.email if isinstance(user, User) else user['email']
+    if isinstance(user, User): email = user.email 
+    else: email = user['email']
+
     app.storage.browser[JWT_TOKEN_KEY] = create_jwt_token(email)
     log("login_user", user_id=email)
 
 def process_oauth_result(result: dict):
-    existing_user = beanops.db.get_user(result['userinfo']['email'], result['userinfo']['iss'])
+    existing_user = db.get_user(result['userinfo']['email'], result['userinfo']['iss'])
     if existing_user:
         login_user(existing_user)        
         return RedirectResponse("/")

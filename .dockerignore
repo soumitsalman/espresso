@@ -7,4 +7,5 @@
 app/nlp/foundry
 app/nlp/tests
 setup.sh
-*__pycache__
+__pycache__
+*.git

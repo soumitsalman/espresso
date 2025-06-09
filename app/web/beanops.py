@@ -18,7 +18,17 @@ BEAN_HEADER_FIELDS = {
     K_CREATED: 1, 
     K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
 }
-BEAN_BODY_FIELDS = {K_URL: 1, K_ENTITIES: 1}
+BEAN_BODY_FIELDS = {K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
+
+BEAN_RENDERABLE_FIELDS = {
+    K_CONTENT: 0, K_IS_SCRAPED: 0,
+    K_COLLECTED: 0, 
+    K_EMBEDDING: 0, K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
+    K_TAGS: 0, K_GIST: 0, 
+    K_TRENDSCORE: 0, 
+    K_NUM_WORDS_CONTENT: 0, K_NUM_WORDS_SUMMARY:0, K_NUM_WORDS_TITLE:0
+}
+
 if config.filters.bean.body == "whole": BEAN_BODY_FIELDS[K_SUMMARY] = 1
 
 @cached(max_size=1, ttl=ONE_WEEK)
@@ -26,7 +36,7 @@ def get_all_sources():
     return sorted(db.beanstore.distinct(K_SOURCE))
 
 def load_bean_body(bean: Bean):
-    res = db.get_bean(bean.url, BEAN_BODY_FIELDS)
+    res = db.get_bean(url=bean.url, project=BEAN_BODY_FIELDS)
     bean.entities = res.entities
     bean.author = res.author
     bean.summary = res.summary
@@ -66,7 +76,7 @@ def get_generated_beans(page: Page, tags, last_ndays: int, start: int, limit: in
         filter=filter, sort_by=NEWEST, 
         skip=start, limit=limit, project=BEAN_HEADER_FIELDS
     )
-    return db.sample_beans(filter=filter, sort_by=NEWEST, limit=limit, project=BEAN_HEADER_FIELDS)   
+    return db.query_beans(filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
 # @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_custom_page(kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
