@@ -279,7 +279,7 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def home(request: Request):
     context = create_context("home", request)  
-    await vanilla.render_home(context)
+    await vanilla.render_home_page(context)
 
 @ui.page("/sources/{source_id}", title="Espresso News, Posts and Blogs")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
@@ -344,7 +344,7 @@ async def related(
     context = create_context(bean, request, K_RELATED)
     context.tags = tags
     context.sources = sources
-    await vanilla.render_related_beans_page(context)
+    await vanilla.render_bean_page(context)
 
 @ui.page("/search", title="Espresso Search")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
@@ -374,14 +374,13 @@ async def stored_page(request: Request, page_id: Page = Depends(validate_page, u
 @ui.page("/articles/{bean_id}", title="Espresso Generated Articles")
 async def generated_beans(request: Request, bean_id: Page = Depends(validate_generated_bean, use_cache=True)):
     context = create_context(bean_id, request, GENERATED)
-    await vanilla.render_generated_bean_page(context)
+    await vanilla.render_bean_page(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def register_user(request: Request, userinfo: dict = Depends(validate_registration)):
     context = Context("registration", userinfo)
     await vanilla.render_registration(context)
-    
 
 def run():
     app.add_middleware(SessionMiddleware, secret_key=os.getenv('APP_STORAGE_SECRET')) # needed for oauth

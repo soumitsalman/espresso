@@ -12,10 +12,12 @@ from app.pybeansack.mongosack import TRENDING, LATEST
 BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
-async def render_home(context: Context):
-    context.last_ndays = 1
+async def render_home_page(context: Context):
+    context.last_ndays = MIN_WINDOW
 
-    render_banner("Today's Briefings") 
+    await load_and_render_frame(context)
+    render_banner("Briefings") 
+    await _render_generated_beans_panel(context)
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
@@ -26,13 +28,11 @@ async def render_home(context: Context):
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
-          
-    has_generated = beanops.count_generated_beans(None, tags=None, last_ndays=context.last_ndays, limit=1)
-    _render_page_frame(
-        context,
-        (lambda: _render_generated_beans_panel(context)) if has_generated else None,
-        lambda: _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter, "Today's Feeds")
-    )
+    
+    render_banner("News, Blogs & Articles").classes("text-h6")
+    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
+    render_thick_separator()
+    await load_and_render_similar_pages(context)
 
 # async def render_trending_snapshot(user):
 #     render_header(user)
@@ -58,154 +58,79 @@ async def render_home(context: Context):
 async def render_stored_page(context: Context):  
     context.last_ndays = config.filters.page.default_window
 
+    await load_and_render_frame(context)
     render_page_banner(context)
+    await _render_generated_beans_panel(context)
     
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_stored_page(context.page, context.kind, context.tags, context.last_ndays, context.sort_by, start, limit)
         
-    def get_filter_tags():
-        if context.page.query_embedding: return beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
-        else: return config.filters.page.categories
+    get_filter_tags = lambda: beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
-        return context
-            
-    has_generated = beanops.count_generated_beans(context.page, tags=context.tags, last_ndays=context.last_ndays, limit=1)
-    _render_page_frame(
-        context,
-        (lambda: _render_generated_beans_panel(context)) if has_generated else None,
-        lambda: _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
-    )
+        return context            
+    
+    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
+    render_thick_separator()
+    await load_and_render_similar_pages(context)    
 
 async def render_custom_page(context: Context): 
     initial_tags = context.tags
     context.last_ndays = config.filters.page.default_window
 
+    await load_and_render_frame(context)
     render_page_banner(context)
+    if context.tags or (context.sources and 'cafecito' in context.sources): await _render_generated_beans_panel(context)
+    # no point is looking for feeds
+    if (context.sources and "cafecito" in context.sources): return
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_custom_page(context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
         
-    def get_filter_tags():
-        if context.page_type in [K_SOURCE, K_ENTITIES]: return config.filters.page.categories
-        else: return beanops.get_filter_tags_for_custom_page(initial_tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
+    get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
         return context
     
-    has_generated = beanops.count_generated_beans(None, tags=context.tags, last_ndays=context.last_ndays, limit=1) if context.tags else 0
-    _render_page_frame(
-        context,
-        (lambda: _render_generated_beans_panel(context)) if has_generated else None,
-        lambda: _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
-    )
+    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
+    render_thick_separator()
+    await load_and_render_similar_pages(context) 
 
-async def render_related_beans_page(context: Context):
-    url = context.page.url
+async def render_bean_page(context: Context):
     context.last_ndays = config.filters.page.default_window
 
-    render_header(context)
-    with ui.column(align_items="stretch").classes("w-full") as holder:
-        render_skeleton_beans(1)
-        ui.skeleton(type='rect', width="100%", height="5px")
-        render_skeleton_beans(2)
-    render_footer(context)
+    await load_and_render_frame(context)
+    _, bean = await load_and_render_whole_bean(context, context.page.url)
+    render_thick_separator()
+    await _render_related_beans_panel(context, bean)
+    await load_and_render_similar_pages(context) 
 
-    async def render():
-        bean = await run.io_bound(db.get_bean, url=url, project=beanops.BEAN_RENDERABLE_FIELDS)
-        has_related = await run.io_bound(beanops.count_related_beans, url=url, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
-        holder.clear()
-        with holder:
-            render_whole_bean(context, bean)
-            if has_related:
-                render_thick_separator()
-                _render_related_beans_panel(context, bean)
-
-    background_tasks.create(render(), name=f"render-whole-bean-{url}-{now()}")
-    return holder
-
-async def render_generated_bean_page(context: Context):
-    url = context.page.url
-    context.last_ndays = config.filters.page.default_window
-
-    render_header(context)
-    with ui.column(align_items="stretch").classes("w-full") as holder:
-        render_skeleton_beans(1)
-        ui.skeleton(type='rect', width="100%", height="5px")
-        render_skeleton_beans(2)
-    render_footer(context)
-
-    async def render():
-        bean = await run.io_bound(db.get_bean, url=url, project=beanops.BEAN_RENDERABLE_FIELDS)
-        has_related = await run.io_bound(beanops.count_related_beans, url=url, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
-        holder.clear()
-        with holder:
-            render_generated_bean(context, bean)
-            if has_related: 
-                render_thick_separator()
-                _render_related_beans_panel(context, bean)
-
-    background_tasks.create(render(), name=f"render-generated-bean-{url}-{now()}")
-    return holder
-
-def _render_filterable_beans_panel(
-    context: Context, 
-    retrieve_beans_func: Callable, 
-    get_filter_tags: Callable = None,
-    apply_filter_func: Callable = None,
-    banner: str = None
-):
-    context.kind, context.sort_by = config.filters.page.default_kind, SORT_BY_OPTIONS[config.filters.page.default_sort_by] # starting default values
-
-    @ui.refreshable
-    def render_beans_panel(ctx: Context):     
-        return render_beans_as_extendable_list(ctx, retrieve_beans_func).classes("w-full")
-    
-    def apply_filter(
-        filter_kind: str = MAINTAIN_VALUE,  
-        filter_sort_by: str = MAINTAIN_VALUE,
-        **kwargs
-    ):
-        nonlocal context
-        if filter_kind is not MAINTAIN_VALUE: context.kind = filter_kind
-        if filter_sort_by is not MAINTAIN_VALUE: context.sort_by = filter_sort_by
-        if kwargs and apply_filter_func: context = apply_filter_func(context, **kwargs)
-        render_beans_panel.refresh(context)
-
-    if banner: ui.label(banner).classes("text-h6")
-    # kind and sort by filter panel
-    if retrieve_beans_func:
-        with ui.row(wrap=True, align_items="stretch").classes("w-full justify-between sm:justify-start"):
-            render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
-            render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
-
-            # topic filter panel
-            if get_filter_tags: render_filter_tags(
-                context,
-                load_items=get_filter_tags, 
-                on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-            ).classes("w-full lg:w-auto")
-        
-    if retrieve_beans_func: render_beans_panel(context)
-
-def _render_generated_beans_panel(context: Context):
+async def _render_generated_beans_panel(context: Context):
     page = context.page if context.is_stored_page else None
+
+    has_generated = await run.io_bound(beanops.count_generated_beans, page, tags=context.tags, last_ndays=context.last_ndays, limit=MIN_LIMIT)
+    if not has_generated: return            
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_generated_beans(page, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
     
-    render_beans_as_extendable_list(context, retrieve_beans).classes("w-full")
+    panel = await load_and_render_beans_as_extendable_list(context, retrieve_beans)
+    panel.classes("w-full")
+    render_thick_separator()
     
-def _render_related_beans_panel(context: Context, bean: Bean):
+async def _render_related_beans_panel(context: Context, bean: Bean):
+    has_related = await run.io_bound(beanops.count_similar_beans, bean, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
+    if not has_related: return
+
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
-        return beanops.get_related_beans(bean.url, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=start, limit=limit)
+        return beanops.get_similar_beans(bean, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
 
     get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
 
@@ -213,30 +138,64 @@ def _render_related_beans_panel(context: Context, bean: Bean):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
     
-    _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter, "🗞️ Related News & Blogs")
+    render_banner("🗞️ Related News & Blogs").classes("text-h6")
+    await _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter)
+    render_thick_separator()
 
-def _render_page_frame(context: Context, *additional_panels):
-    render_header(context)  
-    for render in additional_panels: 
-        if not render: continue
-        render()
-        render_thick_separator()
-    render_similar_pages(context)
-    render_footer(context)
+async def _render_filterable_beans_panel(
+    context: Context, 
+    retrieve_beans_func: Callable, 
+    get_filter_tags: Callable = None,
+    apply_filter_func: Callable = None
+):
+    context.kind, context.sort_by = config.filters.page.default_kind, SORT_BY_OPTIONS[config.filters.page.default_sort_by] # starting default values
+
+    @ui.refreshable
+    async def render_beans_panel(ctx: Context):   
+        panel = await load_and_render_beans_as_extendable_list(ctx, retrieve_beans_func)  
+        return panel.classes("w-full")
+    
+    def apply_filter(filter_kind: str = MAINTAIN_VALUE, filter_sort_by: str = MAINTAIN_VALUE, **kwargs):
+        nonlocal context
+        if filter_kind is not MAINTAIN_VALUE: context.kind = filter_kind
+        if filter_sort_by is not MAINTAIN_VALUE: context.sort_by = filter_sort_by
+        if kwargs and apply_filter_func: context = apply_filter_func(context, **kwargs)
+        render_beans_panel.refresh(context)
+
+    if not retrieve_beans_func: return 
+    with ui.row(wrap=True, align_items="stretch").classes("w-full justify-between sm:justify-start") as filter_panel:
+        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
+        render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
+        
+    await render_beans_panel(context)
+
+    if not get_filter_tags: return
+    with filter_panel:
+        tags_panel = await load_and_render_filter_tags(
+            context, 
+            get_filter_tags, 
+            on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+        )
+        if tags_panel: tags_panel.classes("w-full lg:w-auto")
 
 async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.page.default_kind
+
+    await load_and_render_frame(context)
+    render_search_controls(context).classes("w-full")
 
     def retrieve_beans(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.search_beans(context.query, context.accuracy, context.kind, context.tags, context.sources, context.last_ndays, start, limit)
     
     @ui.refreshable
-    def render_search_result():
-        return render_beans_as_paginated_list(
+    async def render_search_result():
+        panel = await load_and_render_beans_as_paginated_list(
             context, 
             retrieve_beans, 
-            lambda: beanops.count_search_beans(context.query, context.accuracy, context.kind, context.tags, context.sources, context.last_ndays, beanops.MAX_LIMIT)).classes("w-full")               
+            lambda: beanops.count_search_beans(context.query, context.accuracy, context.kind, context.tags, context.sources, context.last_ndays, beanops.MAX_LIMIT)
+        )
+        return panel.classes("w-full")               
 
     def apply_filter(
         filter_kind: str = MAINTAIN_VALUE, 
@@ -247,22 +206,19 @@ async def render_search(context: Context):
         if filter_tags is not MAINTAIN_VALUE:
             context.tags = [initial_tags, filter_tags] if (initial_tags and filter_tags) else (initial_tags or filter_tags)
         return render_search_result.refresh()
-    
-    render_header(context)
-    render_search_controls(context).classes("w-full")
-    
-    if context.query:
-        with ui.row(wrap=True, align_items="stretch").classes("w-full"):
-            render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
-            
-            render_filter_tags(
-                context,
-                load_items=lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags), 
-                on_selection_changed=lambda selected_tags: apply_filter(filter_tags=selected_tags)
-            ).classes("w-full lg:w-auto")
-        render_search_result()
-    
-    render_footer(context)
+        
+    if not context.query: return
+    with ui.row(wrap=True, align_items="stretch").classes("w-full") as filter_panel:
+        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
+        
+    await render_search_result()
+    with filter_panel:
+        tags_panel = await load_and_render_filter_tags(
+            context, 
+            lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags),
+            lambda selected_item: apply_filter(filter_tags=selected_item)
+        )
+        if tags_panel: tags_panel.classes("w-full lg:w-auto")
 
 async def render_registration(context: Context):
     userinfo = context.user

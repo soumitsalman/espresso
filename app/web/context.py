@@ -36,7 +36,7 @@ class Context:
         if isinstance(self.page, Bean): return self.page.url
 
     @property
-    def is_registered(self):
+    def is_user_registered(self):
         return isinstance(self.user, User)
     
     @property
@@ -50,13 +50,13 @@ class Context:
         # which means if this is not a registered user, then user does not have access to the barista
         if not self.is_stored_page: return True
         if self.page.public: return True
-        return (self.user.email == self.page.owner) if (self.is_registered) else False
+        return (self.user.email == self.page.owner) if (self.is_user_registered) else False
 
     @property
     def has_publish_permission(self):
         # only barista pages can be published
         # only registered user that owns the barista can publish
-        if not self.is_registered: return False
+        if not self.is_user_registered: return False
         if not self.is_stored_page: return False
         return self.user.email == self.page.owner
 
@@ -64,14 +64,14 @@ class Context:
     def has_follow_permission(self):
         # anyone can follow public baristas
         # if the barista is marked as private, then only the owner can follow it
-        if not self.is_registered: return False
+        if not self.is_user_registered: return False
         if not self.is_stored_page: return False
         if self.page.public: return True
         return self.user.email == self.page.owner
     
     @property
     def is_following(self):
-        if not self.is_registered: return False
+        if not self.is_user_registered: return False
         if not self.is_stored_page: return False
         return self.page.id in self.user.following
 
