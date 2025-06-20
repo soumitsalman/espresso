@@ -1,5 +1,6 @@
 from memoization import cached
 from icecream import ic
+from nicegui import run
 from app.pybeansack.mongosack import *
 from app.pybeansack.models import *
 from app.shared.utils import *
@@ -86,7 +87,7 @@ def search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|lis
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if query: return db.vector_search_beans(embedding=embedder.embed_query(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
+    if query: return db.vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
 
 # @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_similar_beans(bean: Bean, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -113,7 +114,7 @@ def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
 def count_search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int) -> int:
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if query: return db.count_vector_search_beans(embedding=embedder.embed_query(query), similarity_score=accuracy, filter=filter, limit=limit)  
+    if query: return db.count_vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, limit=limit)  
     return 0
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
@@ -147,7 +148,7 @@ def search_filter_tags(query: str, accuracy: float, tags: str|list[str]|list[lis
     filter=create_filter(None, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
     if query: return db.vector_search_tags(
-        bean_embedding=embedder.embed_query(query), 
+        bean_embedding=_embed(query), 
         bean_similarity_score=accuracy,         
         bean_filter=filter, 
         tag_field = K_ENTITIES,
@@ -202,8 +203,8 @@ def create_filter(
         {K_SHARED_IN: case_insensitive(sources)}
     ]
     if urls: filter[K_URL] = field_value(urls)
-    if created_in_last_ndays: filter.update(created_after(created_in_last_ndays))
-    if updated_in_last_ndays: filter.update(updated_after(updated_in_last_ndays))
+    if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
+    if updated_in_last_ndays: filter.update(updated_in(updated_in_last_ndays))
 
     if isinstance(tags, str): filter[K_TAGS] = lower_case(tags)
     elif isinstance(tags, list):
@@ -220,6 +221,9 @@ def create_filter_for_generated_bean(
     filter = {K_KIND: GENERATED}    
     if tags: filter[K_TAGS] = lower_case(tags)
     if page and page.query_tags: filter[K_TAGS] = lower_case(page.query_tags)
-    if created_in_last_ndays: filter.update(created_after(created_in_last_ndays))
+    if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
     return filter
 
+@cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
+def _embed(query: str):
+    return embedder.embed_query(query)

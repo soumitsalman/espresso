@@ -137,7 +137,7 @@ def initialize_server():
 
 def validate_page(page_id: str) -> Page:
     page_id = page_id.lower()
-    stored_page = beanops.db.get_page(page_id)
+    stored_page = db.get_page(page_id)
     if not stored_page: raise HTTPException(status_code=404, detail=f"{page_id} not found")
     return stored_page
 
@@ -183,11 +183,9 @@ def validate_authenticated_user():
     return user
 
 def create_context(page_id: str|Page|Bean, request: Request, page_type: str = None) -> Context:
-    try:
-        user = validate_authenticated_user()
-    except:
-        user = get_unauthenticated_user(request)
-    return Context(page_id, user, page_type)
+    try: user = validate_authenticated_user()
+    except: user = get_unauthenticated_user(request)
+    return Context(user=user, page=page_id, page_type=page_type, last_ndays=config.filters.page.default_window)
 
 def login_user(user: dict|User):
     if isinstance(user, User): email = user.email 
@@ -279,6 +277,7 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def home(request: Request):
     context = create_context("home", request)  
+    context.last_ndays = MIN_WINDOW
     await vanilla.render_home_page(context)
 
 @ui.page("/sources/{source_id}", title="Espresso News, Posts and Blogs")

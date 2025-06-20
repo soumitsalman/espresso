@@ -13,13 +13,18 @@ BARISTAS_PANEL_CLASSES = "w-1/4 gt-xs"
 MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 
 async def render_home_page(context: Context):
-    context.last_ndays = MIN_WINDOW
+    _, _, nav_panel, _ = render_frame(context)
+    render_banner("News, Blogs & Articles").classes("w-full")
+    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    feeds_panel = ui.column(align_items="stretch").classes("w-full")
+    pages_panel = ui.row().classes("w-full gap-1")    
+    
+    def retrieve_briefings(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_generated_beans(None, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
 
-    await load_and_render_frame(context)
-    render_banner("Briefings") 
-    await _render_generated_beans_panel(context)
-
-    def retrieve_beans(start, limit):
+    # feeds related functions
+    def retrieve_feeds(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_home(context.kind, context.tags, None, context.last_ndays, context.sort_by, start, limit)
     
@@ -29,10 +34,13 @@ async def render_home_page(context: Context):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
     
-    render_banner("News, Blogs & Articles").classes("text-h6")
-    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
-    render_thick_separator()
-    await load_and_render_similar_pages(context)
+    await asyncio.gather(*[
+        load_navigation_panel(context, nav_panel),
+        load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel),
+        _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
+        _load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter)
+    ])
+
 
 # async def render_trending_snapshot(user):
 #     render_header(user)
@@ -56,13 +64,17 @@ async def render_home_page(context: Context):
 #     render_footer()
 
 async def render_stored_page(context: Context):  
-    context.last_ndays = config.filters.page.default_window
-
-    await load_and_render_frame(context)
-    render_page_banner(context)
-    await _render_generated_beans_panel(context)
+    _, _, nav_panel, _ = render_frame(context)
+    render_page_banner(context).classes("w-full")
+    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    feeds_panel = ui.column(align_items="stretch").classes("w-full")
+    pages_panel = ui.row().classes("w-full gap-1")
+   
+    def retrieve_briefings(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_generated_beans(context.page, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
     
-    def retrieve_beans(start, limit):
+    def retrieve_feeds(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_stored_page(context.page, context.kind, context.tags, context.last_ndays, context.sort_by, start, limit)
         
@@ -72,63 +84,61 @@ async def render_stored_page(context: Context):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context            
     
-    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
-    render_thick_separator()
-    await load_and_render_similar_pages(context)    
+    await asyncio.gather(*[
+        load_navigation_panel(context, nav_panel),
+        load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel),
+        _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
+        _load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter)
+    ])
 
 async def render_custom_page(context: Context): 
-    initial_tags = context.tags
-    context.last_ndays = config.filters.page.default_window
+    _, _, nav_panel, _ = render_frame(context)
+    render_page_banner(context).classes("w-full")
+    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    feeds_panel = ui.column(align_items="stretch").classes("w-full")
+    pages_panel = ui.row().classes("w-full gap-1")
 
-    await load_and_render_frame(context)
-    render_page_banner(context)
-    if context.tags or (context.sources and 'cafecito' in context.sources): await _render_generated_beans_panel(context)
-    # no point is looking for feeds
-    if (context.sources and "cafecito" in context.sources): return
+    def retrieve_briefings(start, limit):
+        context.log("retrieve", start=start, limit=limit)
+        return beanops.get_generated_beans(None, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
 
-    def retrieve_beans(start, limit):
+    def retrieve_feeds(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_custom_page(context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
         
     get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
 
+    initial_tags = context.tags
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
         return context
     
-    await _render_filterable_beans_panel(context, retrieve_beans, get_filter_tags, apply_filter)
-    render_thick_separator()
-    await load_and_render_similar_pages(context) 
+    tasks = [
+        load_navigation_panel(context, nav_panel),
+        load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel)
+    ]
+    if context.tags or (context.sources and 'cafecito' in context.sources): tasks.append(_load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel))
+    if context.tags or (context.sources and "cafecito" not in context.sources): tasks.append(_load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter))
+    
+    await asyncio.gather(*tasks)
 
 async def render_bean_page(context: Context):
-    context.last_ndays = config.filters.page.default_window
-
+    # render the frame
+    # _, _, nav_panel, _ = render_frame(context)
     await load_and_render_frame(context)
-    _, bean = await load_and_render_whole_bean(context, context.page.url)
-    render_thick_separator()
-    await _render_related_beans_panel(context, bean)
-    await load_and_render_similar_pages(context) 
+    with ui.column(align_items="stretch").classes("w-full"):
+        sk = render_skeleton_beans(1)
+        bean = await run.io_bound(db.get_bean, url=context.page.url, project=beanops.WHOLE_BEAN_FIELDS)
+        sk.delete()
+        render_whole_bean(context, bean)
+        render_thick_separator() 
 
-async def _render_generated_beans_panel(context: Context):
-    page = context.page if context.is_stored_page else None
-
-    has_generated = await run.io_bound(beanops.count_generated_beans, page, tags=context.tags, last_ndays=context.last_ndays, limit=MIN_LIMIT)
-    if not has_generated: return            
-
-    def retrieve_beans(start, limit):
-        context.log("retrieve", start=start, limit=limit)
-        return beanops.get_generated_beans(page, tags=context.tags, last_ndays=context.last_ndays, start=start, limit=limit)
+    related_panel = ui.column(align_items="stretch").classes("w-full")
+    pages_panel = ui.row().classes("w-full gap-1")  
     
-    panel = await load_and_render_beans_as_extendable_list(context, retrieve_beans)
-    panel.classes("w-full")
-    render_thick_separator()
-    
-async def _render_related_beans_panel(context: Context, bean: Bean):
-    has_related = await run.io_bound(beanops.count_similar_beans, bean, kind=None, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, limit=1)
-    if not has_related: return
-
-    def retrieve_beans(start, limit):
+    # related beans related functions
+    def retrieve_related(start, limit):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_similar_beans(bean, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
 
@@ -137,14 +147,27 @@ async def _render_related_beans_panel(context: Context, bean: Bean):
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
         return context
-    
-    render_banner("🗞️ Related News & Blogs").classes("text-h6")
-    await _render_filterable_beans_panel(context, retrieve_beans, get_filters_items, apply_filter)
-    render_thick_separator()
 
-async def _render_filterable_beans_panel(
+    await asyncio.gather(*[
+        load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel),
+        _load_and_render_feeds_panel(context, retrieve_related, related_panel, get_filters_items, apply_filter)
+    ])
+
+async def _load_and_render_briefings_panel(context: Context, retrieve_beans: Callable, container: ui.element):
+    panel = None
+    with container:
+        sk = render_skeleton_beans(2)
+        has_briefings = await run.io_bound(retrieve_beans, 0, 1)
+        if has_briefings:
+            panel = (await load_and_render_beans_as_extendable_list(context, retrieve_beans))
+            render_thick_separator()
+        sk.delete()
+    return panel
+
+async def _load_and_render_feeds_panel(
     context: Context, 
     retrieve_beans_func: Callable, 
+    container: ui.element,
     get_filter_tags: Callable = None,
     apply_filter_func: Callable = None
 ):
@@ -162,21 +185,25 @@ async def _render_filterable_beans_panel(
         if kwargs and apply_filter_func: context = apply_filter_func(context, **kwargs)
         render_beans_panel.refresh(context)
 
-    if not retrieve_beans_func: return 
-    with ui.row(wrap=True, align_items="stretch").classes("w-full justify-between sm:justify-start") as filter_panel:
-        render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
-        render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
-        
-    await render_beans_panel(context)
+    # if not retrieve_beans_func: return
+    with container: 
+        with ui.row(wrap=True, align_items="stretch").classes("w-full justify-between sm:justify-start") as filter_panel:
+            render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
+            render_sort_by_filters(context, lambda sort_by: apply_filter(filter_sort_by=sort_by))
+            
+        sk = render_skeleton_beans(3)
+        await render_beans_panel(context)
+        render_thick_separator()
+        sk.delete()
 
-    if not get_filter_tags: return
-    with filter_panel:
-        tags_panel = await load_and_render_filter_tags(
-            context, 
-            get_filter_tags, 
-            on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-        )
-        if tags_panel: tags_panel.classes("w-full lg:w-auto")
+        if not get_filter_tags: return
+        with filter_panel:
+            tags_panel = await load_and_render_filter_tags(
+                context, 
+                get_filter_tags, 
+                on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+            )
+            if tags_panel: tags_panel.classes("w-full lg:w-auto")
 
 async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.page.default_kind
@@ -211,7 +238,9 @@ async def render_search(context: Context):
     with ui.row(wrap=True, align_items="stretch").classes("w-full") as filter_panel:
         render_kind_filters(context, lambda kind: apply_filter(filter_kind=kind))
         
+    sk = render_skeleton_beans(3).classes("w-full")
     await render_search_result()
+    sk.delete()
     with filter_panel:
         tags_panel = await load_and_render_filter_tags(
             context, 

@@ -3,11 +3,11 @@ import logging
 from types import SimpleNamespace
 from azure.monitor.opentelemetry import configure_azure_monitor
 from app.pybeansack.mongosack import Beansack
-from app.nlp import Embeddings, embedders
+from app.shared.embedder import LlamaCppEmbeddings
 
 config: SimpleNamespace = None
 db: Beansack = None
-embedder: Embeddings = None
+embedder = None
 logger: logging.Logger = None
 
 def _dict_to_namespace(d):
@@ -27,7 +27,7 @@ def load_env(*args):
 
     config = _dict_to_namespace(values)
     db = Beansack(os.getenv('DB_CONNECTION_STRING'), os.getenv('DB_NAME'))
-    embedder = embedders.from_path(os.getenv('EMBEDDER_PATH'), 512)
+    embedder = LlamaCppEmbeddings(os.getenv('EMBEDDER_PATH'), 512)
     logger = logging.getLogger(config.app.name)
 
     az_monitoring = os.getenv('APPINSIGHTS_CONNECTION_STRING')

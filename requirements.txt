@@ -1,5 +1,4 @@
 llama-cpp-python
-tiktoken
 nicegui
 fastapi[standard]
 slowapi

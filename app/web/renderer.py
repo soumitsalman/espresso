@@ -200,7 +200,7 @@ async def load_navigation_panel(context: Context, navigation_panel):
                     if navigation_items:
                         for item in navigation_items:
                             with ui.tab_panel(item['label']).classes(STRETCH_FIT):
-                                render_page_names_as_list(context, item['items']).classes(STRETCH_FIT)
+                                render_page_names(context, item['items'], ui.list().classes(STRETCH_FIT))
                         tabs.set_value(navigation_items[0]['label'])
         
     return navigation_panel  
@@ -252,25 +252,19 @@ def render_page_search_panel(context: Context):
         if not query: return 
         context.log("search_page", query=query)
         pages = await run.io_bound(beanops.search_pages, query)
-        with search_results_panel:
-            if pages: _render_page_names(pages)
-            else: ui.label(NOTHING_FOUND)
+        if pages: render_page_names(context, pages, search_results_panel)
+        else:
+            with search_results_panel:
+                ui.label(NOTHING_FOUND)
 
     with ui.element() as view:
         search_input = ui.input(placeholder=SEARCH_BARISTA_PLACEHOLDER) \
             .props("dense "+SEARCH_BAR_PROPS) \
             .on("keydown.enter", search_and_render ) \
             .on("clear", search_and_render)
-        search_results_panel = render_page_names_as_list(context, None)
+        search_results_panel = ui.list()
         
     return view
-
-_render_page_names = lambda pages: [ui.item(item.title).props(f"clickable standout href='/pages/{item.id}'").classes("bg-dark rounded-borders") for item in pages]
-
-def render_page_names_as_list(context: Context, baristas: list[Page]):
-    with ui.list() as holder:
-        if baristas: _render_page_names(baristas)
-    return holder 
 
 def render_page_banner(context: Context):
     if context.is_stored_page: banner_text = context.page.title
@@ -304,11 +298,22 @@ def render_filter_tags(context: Context, items: list|dict, on_selection_changed:
             ui.button(icon="close", color="grey-4", on_click=lambda: filter_panel.set_value(None)).props("flat dense round")
     return holder
 
-async def load_and_render_similar_pages(context: Context):
-    related_baristas = await run.io_bound(beanops.get_page_suggestions, context)
-    if not related_baristas: return
-    with ui.row().classes("w-full gap-1"):
-        _render_page_names(related_baristas)
+# async def load_and_render_similar_pages(context: Context):
+#     similar_pages = await run.io_bound(beanops.get_page_suggestions, context)
+#     return render_page_names(context, similar_pages)
+
+render_page_name = lambda page: ui.item(page.title).props(f"clickable standout href='/pages/{page.id}'").classes("bg-dark rounded-borders")
+def render_page_names(context: Context, pages: list[Page], container: ui.element = None):
+    if not pages: return
+    if not container: return list(map(render_page_name, pages))
+    with container: 
+        list(map(render_page_name, pages))
+    return container
+
+async def load_and_render_page_names(context: Context, load_pages: Callable, container: ui.element = None):           
+    pages = await run.io_bound(load_pages, context)
+    if container: container.clear()
+    render_page_names(context, pages, container)
 
 render_grid = lambda: ui.grid().classes(BEANS_GRID_CLASSES)
 
@@ -343,7 +348,8 @@ async def load_and_render_beans_as_paginated_list(context: Context, load_beans: 
         beans = await run.io_bound(load_beans, (page-1)*config.filters.page.max_beans, config.filters.page.max_beans)   
         beans_panel.clear()
         with beans_panel:
-            [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
+            if beans: [render_bean_with_related(context, bean).classes(STRETCH_FIT) for bean in beans] 
+            else: ui.label(NOTHING_FOUND).classes("w-full text-center") 
         return beans
     
     async def page_bar():
@@ -423,7 +429,7 @@ def render_whole_bean(context: Context, bean: Bean):
 
         if bean.image_url:
             with ui.row(align_items="stretch", wrap=False).classes("q-my-sm"):
-                ui.image(bean.image_url).classes("rounded-borders")
+                ui.image(bean.image_url).classes("rounded-borders md:w-1/3 lg:w-1/4")
                 with ui.column(align_items="stretch").classes("w-full") as view:
                     if bean.summary: ui.markdown(bean.summary).classes("" if bean.kind == GENERATED else "truncate-multiline")
                     if bean.kind != GENERATED: render_read_more(context, bean)
@@ -650,7 +656,7 @@ def render_skeleton_beans(count: int = 3, container: ui.element = None):
                     ui.skeleton("text", width="40%")
     return container
 
-def render_skeleton_baristas(count = 3):
+def render_skeleton_page_names(count = 3):
     skeletons = []
     for _ in range(count):
         with ui.item().classes("w-full") as item:

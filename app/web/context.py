@@ -1,27 +1,24 @@
 import logging
 from icecream import ic
+from pydantic import BaseModel
+from typing import Optional
 from app.pybeansack.models import Bean, Page, User
 from app.shared.env import *
 
 # this is the user navigation and access context that also arbitrates RBAC
 # TODO: move this to a different file
-class Context:
-    user: User|str|None = None
-    page: Page|str|Bean = None
-    page_type: str = None
-    kind: str|None = None
-    sort_by: str|None = None
-    query: str|None = None
-    tags: list[str]|None = None
-    sources: list[str]|None = None
-    topic: str = None
-    accuracy: float|None = None
-    last_ndays: int|None = None
-
-    def __init__(self, page: Page|str|Bean, user: User|str, page_type: str = None):
-        self.page = page
-        self.user = user
-        self.page_type = "stored_page" if isinstance(page, Page) else page_type
+class Context(BaseModel):
+    user: Optional[User|str] = None
+    page: Optional[Page|str|Bean] = None
+    page_type: Optional[str] = None
+    kind: Optional[str] = None
+    sort_by: Optional[str] = None
+    query: Optional[str] = None
+    tags: Optional[list[str]] = None
+    sources: Optional[list[str]] = None
+    topic: Optional[str] = None
+    accuracy: Optional[float] = None
+    last_ndays: Optional[int] = None       
         
     @property
     def user_id(self):
