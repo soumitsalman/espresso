@@ -273,9 +273,10 @@ def render_page_banner(context: Context):
     elif context.page_type == K_REGIONS: banner_text = f"📍 {context.page}"
     else: banner_text = context.page
 
-    with render_banner(banner_text) as view:
+    with ui.row(align_items="stretch", wrap=False) as view:
+        render_banner(banner_text)
         if context.is_stored_page:
-            with ui.button(icon="more_vert").props("flat size=sm padding=none").classes("q-ml-md"):
+            with ui.button(icon="more_vert").props("flat size=sm"):
                 with ui.menu():  
                     # with ui.item("Public"):
                     #     ui.switch(value=barista.public, on_change=lambda: toggle_publish(context)).props("flat checked-icon=public unchecked-icon=public_off")
@@ -413,8 +414,7 @@ def render_expandable_bean(context: Context, bean: Bean, expanded: bool = False,
         header = expansion.add_slot("header")
         with header:    
             render_bean_header(context, bean).classes(add="p-0")
-        if expanded:
-            render_bean_summary(context, bean)
+        if expanded: render_bean_summary(context, bean)
     return expansion
 
 async def load_and_render_whole_bean(context, url):
@@ -425,10 +425,10 @@ def render_whole_bean(context: Context, bean: Bean):
     with ui.column(align_items="stretch") as view:
         with render_banner(bean.title):
             if bean.kind == GENERATED: ui.chip("AI Generated").props("square").classes("q-mx-sm")
-        render_bean_tags(context, bean, truncate=False).classes("gap-2 q-my-xs")        
+        render_bean_tags(context, bean, truncate=False).classes("gap-2")        
 
         if bean.image_url:
-            with ui.row(align_items="stretch", wrap=False).classes("q-my-sm"):
+            with ui.row(align_items="stretch", wrap=False):
                 ui.image(bean.image_url).classes("rounded-borders md:w-1/3 lg:w-1/4")
                 with ui.column(align_items="stretch").classes("w-full") as view:
                     if bean.summary: ui.markdown(bean.summary).classes("" if bean.kind == GENERATED else "truncate-multiline")
@@ -439,7 +439,9 @@ def render_whole_bean(context: Context, bean: Bean):
                 if bean.kind != GENERATED: render_read_more(context, bean)
             
         if bean.kind == GENERATED:
-            if bean.analysis: [ui.markdown(line) for line in bean.analysis if line]
+            if bean.analysis: 
+                ui.markdown("\n\n".join(bean.analysis))
+                # [ui.markdown(line) for line in bean.analysis if line]
             with ui.grid().classes("w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 bg-transparent"):
                 if bean.insights: 
                     with ui.card(align_items="stretch").classes("w-full no-shadow"):  
