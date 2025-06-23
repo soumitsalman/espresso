@@ -409,7 +409,7 @@ def render_expandable_bean(context: Context, bean: Bean, expanded: bool = False,
         .on_value_change(load_body) \
         .on_value_change(on_expanded) \
         .props("dense hide-expand-icon") \
-        .classes("bg-dark rounded-borders " + STRETCH_FIT) as expansion:
+        .classes("rounded-borders " + STRETCH_FIT) as expansion:
         header = expansion.add_slot("header")
         with header:    
             render_bean_header(context, bean).classes(add="p-0")
@@ -422,7 +422,7 @@ async def load_and_render_whole_bean(context, url):
     return render_whole_bean(context, bean), bean
 
 def render_whole_bean(context: Context, bean: Bean):
-    with ui.element() as view:
+    with ui.column(align_items="stretch") as view:
         with render_banner(bean.title):
             if bean.kind == GENERATED: ui.chip("AI Generated").props("square").classes("q-mx-sm")
         render_bean_tags(context, bean, truncate=False).classes("gap-2 q-my-xs")        
@@ -440,12 +440,17 @@ def render_whole_bean(context: Context, bean: Bean):
             
         if bean.kind == GENERATED:
             if bean.analysis: [ui.markdown(line) for line in bean.analysis if line]
-            if bean.insights:   
-                ui.label("Insights").classes("text-bold")
-                [ui.markdown(line) for line in bean.insights if line]
-            if bean.predictions: 
-                ui.label("Predictions").classes("text-bold")
-                [ui.markdown(line) for line in bean.predictions if line]
+            with ui.grid().classes("w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 bg-transparent"):
+                if bean.insights: 
+                    with ui.card(align_items="stretch").classes("w-full no-shadow"):  
+                        ui.label("Insights").classes("text-bold text-lg")
+                        ui.markdown("\n".join(bean.insights))
+                        # [ui.markdown(line) for line in bean.insights if line]
+                if bean.predictions: 
+                    with ui.card(align_items="stretch").classes("w-full no-shadow"):  
+                        ui.label("Predictions").classes("text-bold text-lg")
+                        ui.markdown("\n".join(bean.predictions))
+                        # [ui.markdown(line) for line in bean.predictions if line]
 
         if bean.entities: render_bean_entities_as_chips(context, bean)
     return view
@@ -524,7 +529,8 @@ def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
     with ui.row(align_items="center") as view:
         render_tag_as_chip(naturalday(bean.created), max_width=max_width)
         render_tag_as_chip(bean.site_name or bean.source, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
-        if bean.author: render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
+        # TODO: this is temporary fix for the author tag. remove later
+        if bean.author and bean.author != "[no-author]": render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
         if bean.categories: render_tag_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]), max_width=max_width)         
         if bean.regions: render_tag_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]), max_width=max_width)
         if bean.comments: render_tag_as_chip(f"💬 {naturalnum(bean.comments)}", max_width=max_width).tooltip(f"{bean.comments} comments across various social media sources")
@@ -533,7 +539,7 @@ def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
     return view
 
 def render_read_more(context: Context, bean: Bean):
-    link = create_target("articles", bean.url) if bean.kind == GENERATED else bean.url
+    link = create_target("articles", bean.id) if bean.kind == GENERATED else bean.url
     return render_tag_as_link("Read More ...", link) \
         .on("click", lambda: context.log("opened", url=link)) \
         .tooltip(f"Read the full article in {bean.site_name or bean.site_base_url}")

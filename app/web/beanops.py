@@ -19,7 +19,7 @@ BEAN_HEADER_FIELDS = {
     K_CREATED: 1, 
     K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
 }
-BEAN_SUMMARY_FIELDS = {K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
+BEAN_SUMMARY_FIELDS = {K_ID: 1, K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
 WHOLE_BEAN_FIELDS = {
     K_CONTENT: 0, K_IS_SCRAPED: 0,
     K_COLLECTED: 0, 
@@ -40,9 +40,9 @@ def load_bean_body(bean: Bean):
     bean.summary = res.summary
     return bean
 
-def get_generated_bean(url: str):
-    bean = db.beanstore.find_one(filter={K_ID: url, K_KIND: GENERATED}, projection={K_EMBEDDING: 0, K_CONTENT: 0})
-    if bean: return GeneratedBean(**bean)
+# def get_generated_bean(url: str):
+#     bean = db.beanstore.find_one(filter={K_ID: url, K_KIND: GENERATED}, projection={K_EMBEDDING: 0, K_CONTENT: 0})
+#     if bean: return GeneratedBean(**bean)
 
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_beans_for_home(kind: str, tags: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
