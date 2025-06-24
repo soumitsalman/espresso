@@ -390,6 +390,7 @@ def run():
         storage_secret=os.getenv('APP_STORAGE_SECRET'),
         dark=True, 
         favicon="./images/favicon.ico", 
+        host="0.0.0.0",
         port=8080, 
         show=False,
         uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
