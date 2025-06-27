@@ -37,7 +37,7 @@ TOGGLE_OPTIONS_PROPS = "unelevated rounded no-caps color=dark toggle-color=prima
 SEARCH_BAR_PROPS = "item-aligned standout clearable clear-icon=close maxlength=1000 rounded"
 LOGIN_MENU_PROPS = "transition-show=jump-down transition-hide=jump-up"
 FILTER_TAGS_BAR_PROPS = "dense shrink no-caps mobile-arrows active-bg-color=primary indicator-color=transparent"
-BEANS_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 bg-transparent"
+BEANS_GRID_CLASSES = "w-full m-0 p-0 grid-cols-1 bg-transparent"
 BEAN_TAG_CLASSES = "ml-0 mr-2 my-0 p-0 text-caption"
 FILTER_TAG_CLASSES = "rounded-full bg-dark q-mr-sm"
 
@@ -99,8 +99,6 @@ create_external_target = lambda base_url, **kwargs: base_url+"?"+urlencode({key:
 
 render_banner = lambda text: ui.label(text).classes("text-h5")
 render_thick_separator = lambda: ui.separator().props("spaced=false").style("height: 5px;").classes("w-full")
-render_share_button = lambda context, bean, base_url, icon: ui.button(on_click=create_share_func(context, bean, base_url), icon=icon, color="transparent").props("flat")
-
 tooltip_msg = lambda ctx, msg: msg if ctx.is_user_registered else f"Login to {msg}"
 
 async def load_and_render_frame(context: Context):
@@ -316,7 +314,11 @@ async def load_and_render_page_names(context: Context, load_pages: Callable, con
     if container: container.clear()
     render_page_names(context, pages, container)
 
-render_grid = lambda: ui.grid().classes(BEANS_GRID_CLASSES)
+def render_grid(max_columns: int = 3): 
+    classes = BEANS_GRID_CLASSES
+    if max_columns == 2: classes += " lg:grid-cols-2"
+    elif max_columns == 3: classes += " lg:grid-cols-2 xl:grid-cols-3"
+    return ui.grid().classes(classes)
 
 async def load_and_render_beans(context: Context, load_beans: Callable):
     with render_grid() as container:
@@ -376,7 +378,7 @@ def render_bean_with_related(context: Context, bean: Bean):
     async def on_read():
         nonlocal related_beans
         if related_beans: return
-        related_beans = await run.io_bound(beanops.get_beans_in_cluster, url=bean.url, kind=None, tags=None, sources=None, last_ndays=None, start=0, limit=config.filters.bean.max_related)
+        related_beans = await run.io_bound(beanops.get_beans_in_cluster, id=bean.id, kind=None, tags=None, sources=None, last_ndays=None, start=0, limit=config.filters.bean.max_related)
         if not related_beans: return
         with carousel:
             for item in related_beans:
@@ -424,42 +426,32 @@ async def load_and_render_whole_bean(context, url):
 def render_whole_bean(context: Context, bean: Bean):
     with ui.column(align_items="stretch") as view:
         with render_banner(bean.title):
-            if bean.kind == GENERATED: ui.chip("AI Generated").props("square").classes("q-mx-sm")
-        render_bean_tags(context, bean, truncate=False).classes("gap-2")        
-
-        if bean.image_url:
-            with ui.row(align_items="stretch", wrap=False):
-                ui.image(bean.image_url).classes("rounded-borders md:w-1/3 lg:w-1/4")
-                with ui.column(align_items="stretch").classes("w-full") as view:
-                    if bean.summary: ui.markdown(bean.summary).classes("" if bean.kind == GENERATED else "truncate-multiline")
-                    if bean.kind != GENERATED: render_read_more(context, bean)
-        else:
+            if bean.kind == GENERATED: ui.chip("AI Generated", on_click=lambda: internal_nav("sources", bean.source)).props("square").classes("q-mx-sm")
+        render_bean_tags(context, bean, truncate=False).classes("gap-2")     
+        
+        with ui.row(align_items="stretch", wrap=False).classes("w-full flex-col md:flex-row"):
+            if bean.image_url: ui.image(bean.image_url).classes("rounded-borders md:w-1/3")
             with ui.column(align_items="stretch").classes("w-full") as view:
-                if bean.summary: ui.markdown("> " + bean.summary).classes("" if bean.kind == GENERATED else "truncate-multiline")
-                if bean.kind != GENERATED: render_read_more(context, bean)
+                if bean.summary: ui.markdown("> " + bean.summary.strip()).classes("" if bean.kind == GENERATED else "truncate-multiline")
+                with ui.grid(columns=2).classes("w-full items-center"):
+                    if bean.kind != GENERATED: render_read_more(context, bean)
+                    render_share_buttons(context, bean).classes("col-start-2 justify-self-end")
             
         if bean.kind == GENERATED:
             if bean.analysis: 
                 ui.markdown("\n\n".join(bean.analysis))
-                # [ui.markdown(line) for line in bean.analysis if line]
-            with ui.grid().classes("w-full m-0 p-0 grid-cols-1 lg:grid-cols-2 bg-transparent"):
+            with render_grid(2):
                 if bean.insights: 
                     with ui.card(align_items="stretch").classes("w-full no-shadow"):  
                         ui.label("Insights").classes("text-bold text-lg")
                         ui.markdown("\n".join(bean.insights))
-                        # [ui.markdown(line) for line in bean.insights if line]
                 if bean.predictions: 
                     with ui.card(align_items="stretch").classes("w-full no-shadow"):  
                         ui.label("Predictions").classes("text-bold text-lg")
                         ui.markdown("\n".join(bean.predictions))
-                        # [ui.markdown(line) for line in bean.predictions if line]
 
         if bean.entities: render_bean_entities_as_chips(context, bean)
     return view
-
-# def render_bean(context, bean, expanded: bool = False, on_expanded = None):
-#     if config.rendering.bean.body == "whole": return render_whole_bean(context, bean)
-#     return render_expandable_bean(context, bean, expanded, on_expanded)
 
 render_bean_snapshot = render_expandable_bean
 
@@ -603,18 +595,25 @@ def render_bean_actions(context: Context, bean: Bean):
                 # .set_enabled(context.is_user_registered)
 
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
-            # icon = "auto_stories" "read_more" "eyeglasses"
+            # icon = "auto_stories" "read_more" "eyeglasses" "search"
             # ui.button(icon="auto_stories", on_click=open_read).props(ACTION_BUTTON_PROPS).tooltip("Read the full article") 
-            if bean.kind != GENERATED: ui.button(icon="search", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            if bean.kind != GENERATED: ui.button(icon="auto_stories", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
             with ui.button(icon="share").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
-                    with ui.row(wrap=False, align_items="stretch").classes("gap-1 m-0 p-0"):
-                        render_share_button(context, bean, "https://www.reddit.com/submit", REDDIT_ICON).tooltip("Share on Reddit")
-                        render_share_button(context, bean, "https://www.linkedin.com/shareArticle", LINKEDIN_ICON).tooltip("Share on LinkedIn")
-                        render_share_button(context, bean, "https://x.com/intent/tweet", TWITTER_ICON).tooltip("Share on X")
-                        render_share_button(context, bean, "https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
-                        # share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
+                    render_share_buttons(context, bean).classes("gap-1 m-0 p-0")
+                       
     return view  
+
+render_share_button = lambda context, bean, base_url, icon: ui.button(on_click=create_share_func(context, bean, base_url), icon=icon, color="transparent")
+
+def render_share_buttons(context: Context, bean: Bean):
+    with ui.button_group().props(ACTION_BUTTON_PROPS) as buttons:
+        render_share_button(context, bean, "https://www.reddit.com/submit", REDDIT_ICON).tooltip("Share on Reddit")
+        render_share_button(context, bean, "https://www.linkedin.com/shareArticle", LINKEDIN_ICON).tooltip("Share on LinkedIn")
+        render_share_button(context, bean, "https://x.com/intent/tweet", TWITTER_ICON).tooltip("Share on X")
+        render_share_button(context, bean, "https://wa.me/", WHATSAPP_ICON).tooltip("Share on WhatsApp")
+        # render_share_button("https://slack.com/share/url", SLACK_ICON).tooltip("Share on Slack") 
+    return buttons
 
 def render_report_a_bug():
     with ui.dialog() as dialog, ui.card():

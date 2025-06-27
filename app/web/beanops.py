@@ -11,7 +11,7 @@ from app.web.context import *
 CACHE_SIZE = 100
 
 BEAN_HEADER_FIELDS = {
-    K_URL: 1, K_TITLE: 1,
+    K_ID: 1, K_URL: 1, K_TITLE: 1,
     K_KIND: 1, K_IMAGEURL: 1, 
     K_SOURCE: 1, K_SITE_NAME: 1, K_SITE_BASE_URL: 1, K_AUTHOR: 1,
     K_CATEGORIES: 1, 
@@ -96,9 +96,9 @@ def get_similar_beans(bean: Bean, kind: str|list[str], tags: str|list[str]|list[
     if bean.embedding: return db.vector_search_beans(bean.embedding, accuracy, filter, None, sort_by, start, limit, BEAN_HEADER_FIELDS)
     else: return db.vector_search_similar_beans(bean.url, accuracy, filter, None, start, limit, BEAN_HEADER_FIELDS)
 
-def get_beans_in_cluster(url: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
+def get_beans_in_cluster(id: str, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int):
     filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_beans_in_cluster(url=url, filter=filter, sort_by=None, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_SUMMARY_FIELDS}) 
+    return db.query_beans_in_cluster(id=id, filter=filter, sort_by=None, skip=start, limit=limit, project={**BEAN_HEADER_FIELDS, **BEAN_SUMMARY_FIELDS}) 
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
