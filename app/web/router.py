@@ -4,7 +4,8 @@ from icecream import ic
 from app.pybeansack.models import *
 from app.shared.env import *
 from app.shared.consts import *
-from app.web import beanops, vanilla
+from app.shared.utils import *
+from app.web import beanops, vanilla, renderer
 from app.web.context import *
 
 import jwt
@@ -273,14 +274,14 @@ async def document(request: Request,
 async def image(image_id: str = Depends(validate_image, use_cache=True)):    
     return FileResponse(image_id, media_type="image/png")
 
-@ui.page("/", title="Espresso")
+@ui.page("/")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def home(request: Request):
     context = create_context("home", request)  
     context.last_ndays = MIN_WINDOW
     await vanilla.render_home_page(context)
 
-@ui.page("/sources/{source_id}", title="Espresso News, Posts and Blogs")
+@ui.page("/sources/{source_id}")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def custom_source_page(
     request: Request, 
@@ -292,7 +293,7 @@ async def custom_source_page(
     context.tags = tags
     await vanilla.render_custom_page(context)
 
-@ui.page("/categories/{category}", title="Espresso News, Posts and Blogs")
+@ui.page("/categories/{category}")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def custom_category_page(
     request: Request, 
@@ -305,7 +306,7 @@ async def custom_category_page(
     context.sources = sources
     await vanilla.render_custom_page(context)
 
-@ui.page("/entities/{entity}", title="Espresso News, Posts and Blogs")
+@ui.page("/entities/{entity}")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def custom_entity_page(
     request: Request, 
@@ -318,7 +319,7 @@ async def custom_entity_page(
     context.sources = sources
     await vanilla.render_custom_page(context)
 
-@ui.page("/regions/{region}", title="Espresso News, Posts and Blogs")
+@ui.page("/regions/{region}")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def custom_region_page(
     request: Request, 
@@ -331,7 +332,7 @@ async def custom_region_page(
     context.sources = sources
     await vanilla.render_custom_page(context)
 
-@ui.page("/related", title="Espresso News, Posts and Blogs")
+@ui.page("/related")
 @limiter.limit(LIMIT_10_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def related(
     request: Request, 
@@ -362,7 +363,7 @@ async def search(request: Request,
     context.sources = sources
     await vanilla.render_search(context)
 
-@ui.page("/pages/{page_id}", title="Espresso")
+@ui.page("/pages/{page_id}")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def stored_page(request: Request, page_id: Page = Depends(validate_page, use_cache=True)): 
     context = create_context(page_id, request)
@@ -370,7 +371,7 @@ async def stored_page(request: Request, page_id: Page = Depends(validate_page, u
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_stored_page(context)
 
-@ui.page("/articles/{bean_id}", title="Espresso Generated Articles")
+@ui.page("/articles/{bean_id}")
 async def generated_beans(request: Request, bean_id: Page = Depends(validate_generated_bean, use_cache=True)):
     context = create_context(bean_id, request, GENERATED)
     await vanilla.render_bean_page(context)
@@ -385,8 +386,12 @@ def run():
     app.add_middleware(SessionMiddleware, secret_key=os.getenv('APP_STORAGE_SECRET')) # needed for oauth
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    ui.add_head_html(read_file(renderer.SEO_HTML), shared=True)
+    ui.add_head_html(renderer.MATERIAL_ICONS, shared=True)
+    ui.add_head_html(renderer.GOOGLE_ANALYTICS_SCRIPT.format(id=config.app.google_analytics_id), shared=True)
+    ui.add_css(renderer.CSS_FILE, shared=True)    
     ui.run(
-        title=config.app.name, 
+        title=config.app.description, 
         storage_secret=os.getenv('APP_STORAGE_SECRET'),
         dark=True, 
         favicon="./images/favicon.ico", 

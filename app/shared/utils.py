@@ -9,3 +9,6 @@ naturalday = lambda date_val: humanize.naturalday(date_val, format="%a, %b %d")
 naturalnum = humanize.intword
 # ndays_ago = lambda ndays: datetime.now() - timedelta(days=ndays)
 # now = datetime.now
+
+def read_file(path: str) -> str:
+    with open(path, "r") as file: return file.read()

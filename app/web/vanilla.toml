@@ -97,5 +97,5 @@ tags = [
 
 [app]
 name = "Espresso"
-description = "Espresso Feed Reader"
+description = "Espresso - AI News Automation by Project Cafecito"
 google_analytics_id = "G-NBSTNYWPG1"

@@ -15,6 +15,7 @@ from app.web.custom_ui import SwitchButton
 from icecream import ic
 
 CSS_FILE = "./app/web/styles.css"
+SEO_HTML = "./app/web/seo.html"
 
 MATERIAL_ICONS = """<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">"""
 GOOGLE_ANALYTICS_SCRIPT = """
@@ -111,11 +112,7 @@ def render_frame(context: Context):
     return header, nav_button, nav_panel, footer
 
 def render_header(context: Context):
-    ui.add_css(CSS_FILE, shared=True)
-    ui.add_head_html(MATERIAL_ICONS, shared=True)
-    ui.add_head_html(GOOGLE_ANALYTICS_SCRIPT.format(id=config.app.google_analytics_id), shared=True)
     ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)    
-
     with ui.dialog() as search_dialog, ui.card(align_items="stretch").classes("w-full"):
         render_search_bar(context).classes("fit")      
 
