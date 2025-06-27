@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import random
 import threading
 from typing import Awaitable, Callable
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from nicegui import ui, background_tasks, run
 from app.pybeansack.models import *
 from app.shared.utils import *
@@ -27,6 +27,32 @@ GOOGLE_ANALYTICS_SCRIPT = """
   gtag('js', new Date());
   gtag('config', '{id}');
 </script>
+"""
+
+BEAN_META_TAGS = """
+<meta name="keywords" content="{tags}">
+<meta name="description" content="{description}">
+<meta name="robots" content="index, follow">
+<meta name="ai-content" content="{description}">
+<meta name="ai-intent" content="{tags}">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
+<meta property="og:image" content="{image_url}">
+<meta property="og:url" content="{url}">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{title}">
+<meta name="twitter:description" content="{description}">
+<meta name="twitter:image" content="{image_url}">
+<link rel="canonical" href="{url}">
+<link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+<link rel="apple-touch-icon" type="image/png" href="/images/espresso.png">
+<meta name="DC.title" content="{title}">
+<meta name="DC.description" content="{description}">
+<meta name="DC.subject" content="{tags}">
+<meta name="DC.creator" content="{creator}">
+<meta name="DC.publisher" content="{publisher}">
+<meta name="DC.type" content="Article">
 """
 
 PRIMARY_COLOR = "#4e392a"
@@ -88,9 +114,10 @@ def create_target(*args, **kwargs) -> str:
     return path
 
 def create_share_func(context: Context, bean: Bean, base_url: str):
+    url = bean.url if bean.kind != GENERATED else urljoin(os.getenv("BASE_URL"), create_target("articles", bean.id))
     return lambda: [
-        context.log("shared", url=bean.url, target=base_url),
-        nav(create_external_target(base_url, url=bean.url, text=f"# {bean.title}\n{bean.summary}\n\n{bean.url}"))
+        context.log("shared", url=url, target=base_url),
+        nav(create_external_target(base_url, url=url, text=f"# {bean.title}\n{bean.summary}\n\n{url}"))
     ]
 
 now = datetime.now
@@ -421,6 +448,8 @@ async def load_and_render_whole_bean(context, url):
     return render_whole_bean(context, bean), bean
 
 def render_whole_bean(context: Context, bean: Bean):
+    if bean.kind == GENERATED: add_bean_meta_tags(bean)
+
     with ui.column(align_items="stretch") as view:
         with render_banner(bean.title):
             if bean.kind == GENERATED: ui.chip("AI Generated", on_click=lambda: internal_nav("sources", bean.source)).props("square").classes("q-mx-sm")
@@ -449,6 +478,16 @@ def render_whole_bean(context: Context, bean: Bean):
 
         if bean.entities: render_bean_entities_as_chips(context, bean)
     return view
+
+add_bean_meta_tags = lambda bean: ui.add_head_html(BEAN_META_TAGS.format(
+    title=bean.title,
+    description=bean.summary,
+    image_url=bean.image_url,
+    url=create_target("articles", bean.id),
+    tags=", ".join(bean.tags or []),
+    creator=bean.author,
+    publisher=bean.site_name
+))
 
 render_bean_snapshot = render_expandable_bean
 
