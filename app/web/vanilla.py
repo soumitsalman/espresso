@@ -124,15 +124,14 @@ async def render_custom_page(context: Context):
     await asyncio.gather(*tasks)
 
 async def render_bean_page(context: Context):
-    # render the frame
-    # _, _, nav_panel, _ = render_frame(context)
+    bean = context.page
     await load_and_render_frame(context)
-    with ui.column(align_items="stretch").classes("w-full"):
-        sk = render_skeleton_beans(1)
-        bean = await run.io_bound(db.get_bean, url=context.page.url, project=beanops.WHOLE_BEAN_FIELDS)
-        sk.delete()
-        render_whole_bean(context, bean)
-        render_thick_separator() 
+    # with ui.column(align_items="stretch").classes("w-full"):
+        # sk = render_skeleton_beans(1)
+        # bean = await run.io_bound(db.get_bean, url=context.page.url, project=beanops.WHOLE_BEAN_FIELDS)
+        # sk.delete()
+    render_whole_bean(context, bean).classes("w-full")
+    render_thick_separator().classes("w-full")
 
     related_panel = ui.column(align_items="stretch").classes("w-full")
     pages_panel = ui.row().classes("w-full gap-1")  

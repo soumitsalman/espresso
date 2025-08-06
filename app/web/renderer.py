@@ -459,22 +459,24 @@ def render_whole_bean(context: Context, bean: Bean):
             if bean.image_url: ui.image(bean.image_url).classes("rounded-borders md:w-1/3")
             with ui.column(align_items="stretch").classes("w-full") as view:
                 if bean.summary: ui.markdown("> " + bean.summary.strip()).classes("" if bean.kind == GENERATED else "truncate-multiline")
-                with ui.grid(columns=2).classes("w-full items-center"):
+                # with ui.grid(columns=2).classes("w-full items-center"):
+                with ui.row(align_items="center").classes("w-full justify-between"):
                     if bean.kind != GENERATED: render_read_more(context, bean)
-                    render_share_buttons(context, bean).classes("col-start-2 justify-self-end")
+                    render_share_buttons(context, bean)
             
-        if bean.kind == GENERATED:
+        if bean.kind == GENERATED:            
+            # with render_grid(2 if bean.analysis and bean.insights else 1):
+            # with ui.row(align_items="stretch").classes("w-full justify-between"):
             if bean.analysis: 
-                ui.markdown("\n\n".join(bean.analysis))
-            with render_grid(2):
-                if bean.insights: 
-                    with ui.card(align_items="stretch").classes("w-full no-shadow"):  
-                        ui.label("Insights").classes("text-bold text-lg")
-                        ui.markdown("\n".join(bean.insights))
-                if bean.predictions: 
-                    with ui.card(align_items="stretch").classes("w-full no-shadow"):  
-                        ui.label("Predictions").classes("text-bold text-lg")
-                        ui.markdown("\n".join(bean.predictions))
+                with ui.card(align_items="stretch").classes("w-full no-shadow"):  
+                    ui.label("Highlights").classes("text-bold text-lg")
+                    ui.markdown("\n".join(f"- {point}" for point in bean.analysis))
+            if bean.insights: 
+                with ui.card(align_items="stretch").classes("w-full no-shadow"):  
+                    ui.label("Datapoints").classes("text-bold text-lg")
+                    ui.markdown("\n".join(f"- {point}" for point in bean.insights))
+            if bean.content: 
+                ui.markdown(bean.content)
 
         if bean.entities: render_bean_entities_as_chips(context, bean)
     return view

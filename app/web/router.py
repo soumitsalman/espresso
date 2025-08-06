@@ -143,12 +143,12 @@ def validate_page(page_id: str) -> Page:
     return stored_page
 
 def validate_bean(url: str) -> Page:
-    bean = db.get_bean(url=url, project={K_URL: 1, K_ID: 1})
+    bean = db.get_bean(url=url, project=beanops.WHOLE_BEAN_FIELDS)
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
     return bean
 
 def validate_generated_bean(bean_id: str) -> Page:
-    bean = db.get_bean(_id=bean_id, kind=GENERATED, project={K_URL: 1, K_ID: 1})
+    bean = db.get_bean(_id=bean_id, kind=GENERATED, project=beanops.WHOLE_GENERATED_BEAN_FIELDS)
     if not bean: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
     return bean
 
