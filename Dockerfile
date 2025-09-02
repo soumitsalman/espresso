@@ -31,7 +31,7 @@ COPY --from=builder /python-deps /usr/local/lib/python3.12/site-packages/
 COPY . .
 RUN rm -r app/connectors app/slack
 
-ENV EMBEDDER_PATH=/espresso/.models/gist-small-embeddingv-0-q8.gguf
+ENV EMBEDDER_PATH=/espresso/.models/gist-small-embedding-v0-q8_0.gguf
 ENV OTEL_SERVICE_NAME=ESPRESSO-WEB
 ENV MODE=web
 

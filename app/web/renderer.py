@@ -467,10 +467,10 @@ def render_whole_bean(context: Context, bean: Bean):
         if bean.kind == GENERATED:            
             # with render_grid(2 if bean.analysis and bean.insights else 1):
             # with ui.row(align_items="stretch").classes("w-full justify-between"):
-            if bean.analysis: 
+            if bean.highlights: 
                 with ui.card(align_items="stretch").classes("w-full no-shadow"):  
                     ui.label("Highlights").classes("text-bold text-lg")
-                    ui.markdown("\n".join(f"- {point}" for point in bean.analysis))
+                    ui.markdown("\n".join(f"- {point}" for point in bean.highlights))
             if bean.insights: 
                 with ui.card(align_items="stretch").classes("w-full no-shadow"):  
                     ui.label("Datapoints").classes("text-bold text-lg")
