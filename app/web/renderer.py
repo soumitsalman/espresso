@@ -114,7 +114,7 @@ def create_target(*args, **kwargs) -> str:
     return path
 
 def create_share_func(context: Context, bean: Bean, base_url: str):
-    url = bean.url if bean.kind != GENERATED else urljoin(os.getenv("BASE_URL"), create_target("articles", bean.id))
+    url = bean.url if bean.kind != OPED else urljoin(os.getenv("BASE_URL"), create_target("articles", bean.id))
     return lambda: [
         context.log("shared", url=url, target=base_url),
         nav(create_external_target(base_url, url=url, text=f"# {bean.title}\n{bean.summary}\n\n{url}"))
@@ -290,7 +290,7 @@ def render_page_search_panel(context: Context):
 
 def render_page_banner(context: Context):
     if context.is_stored_page: banner_text = context.page.title
-    elif context.page_type in [K_RELATED, GENERATED]: banner_text = context.page.title
+    elif context.page_type in [K_RELATED, OPED]: banner_text = context.page.title
     elif context.page_type == K_CATEGORIES: banner_text = f"🏷️ {context.page}"
     elif context.page_type == K_REGIONS: banner_text = f"📍 {context.page}"
     else: banner_text = context.page
@@ -448,23 +448,23 @@ async def load_and_render_whole_bean(context, url):
     return render_whole_bean(context, bean), bean
 
 def render_whole_bean(context: Context, bean: Bean):
-    if bean.kind == GENERATED: add_bean_meta_tags(bean)
+    if bean.kind == OPED: add_bean_meta_tags(bean)
 
     with ui.column(align_items="stretch") as view:
         with render_banner(bean.title):
-            if bean.kind == GENERATED: ui.chip("AI Generated", on_click=lambda: internal_nav("sources", bean.source)).props("square").classes("q-mx-sm")
+            if bean.kind == OPED: ui.chip("AI Generated", on_click=lambda: internal_nav("sources", bean.source)).props("square").classes("q-mx-sm")
         render_bean_tags(context, bean, truncate=False).classes("gap-2")     
         
         with ui.row(align_items="stretch", wrap=False).classes("w-full flex-col md:flex-row"):
             if bean.image_url: ui.image(bean.image_url).classes("rounded-borders md:w-1/3")
             with ui.column(align_items="stretch").classes("w-full") as view:
-                if bean.summary: ui.markdown("> " + bean.summary.strip()).classes("" if bean.kind == GENERATED else "truncate-multiline")
+                if bean.summary: ui.markdown("> " + bean.summary.strip()).classes("" if bean.kind == OPED else "truncate-multiline")
                 # with ui.grid(columns=2).classes("w-full items-center"):
                 with ui.row(align_items="center").classes("w-full justify-between"):
-                    if bean.kind != GENERATED: render_read_more(context, bean)
+                    if bean.kind != OPED: render_read_more(context, bean)
                     render_share_buttons(context, bean)
             
-        if bean.kind == GENERATED:            
+        if bean.kind == OPED:            
             # with render_grid(2 if bean.analysis and bean.insights else 1):
             # with ui.row(align_items="stretch").classes("w-full justify-between"):
             if bean.highlights: 
@@ -488,7 +488,7 @@ add_bean_meta_tags = lambda bean: ui.add_head_html(BEAN_META_TAGS.format(
     url=create_target("articles", bean.id),
     tags=", ".join(bean.tags or []),
     creator=bean.author,
-    publisher=bean.site_name
+    publisher="Cafecito Publications"
 ))
 
 render_bean_snapshot = render_expandable_bean
@@ -560,18 +560,19 @@ def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
     max_width = "25ch" if truncate else None
     with ui.row(align_items="center") as view:
         render_tag_as_chip(naturalday(bean.created), max_width=max_width)
-        render_tag_as_chip(bean.site_name or bean.source, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
+        render_tag_as_chip(bean.source, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
         # TODO: this is temporary fix for the author tag. remove later
         if bean.author and bean.author != "[no-author]": render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
         if bean.categories: render_tag_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]), max_width=max_width)         
         if bean.regions: render_tag_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]), max_width=max_width)
-        if bean.comments: render_tag_as_chip(f"💬 {naturalnum(bean.comments)}", max_width=max_width).tooltip(f"{bean.comments} comments across various social media sources")
-        if bean.likes: render_tag_as_chip(f"👍 {naturalnum(bean.likes)}", max_width=max_width).tooltip(f"{bean.likes} likes across various social media sources")
-        if bean.shares and bean.shares > 1: render_tag_as_chip(f"🔗 {bean.shares}", max_width=max_width).tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️    
+        if bean.chatter:
+            if bean.chatter.comments: render_tag_as_chip(f"💬 {naturalnum(bean.chatter.comments)}", max_width=max_width).tooltip(f"{bean.chatter.comments} comments across various social media sources")
+            if bean.chatter.likes: render_tag_as_chip(f"👍 {naturalnum(bean.chatter.likes)}", max_width=max_width).tooltip(f"{bean.chatter.likes} likes across various social media sources")
+            if bean.chatter.shares and bean.chatter.shares > 1: render_tag_as_chip(f"🔗 {bean.chatter.shares}", max_width=max_width).tooltip(f"{bean.chatter.shares} shares across various social media sources") # another option 🗞️    
     return view
 
 def render_read_more(context: Context, bean: Bean):
-    link = create_target("articles", bean.id) if bean.kind == GENERATED else bean.url
+    link = create_target("articles", bean.id) if bean.kind == OPED else bean.url
     return render_tag_as_link("Read More ...", link) \
         .on("click", lambda: context.log("opened", url=link)) \
         .tooltip(f"Read the full article in {bean.site_name or bean.site_base_url}")
@@ -580,7 +581,7 @@ def render_bean_summary(context: Context, bean: Bean):
     with ui.column(align_items="stretch").classes("w-full h-full") as view:
         if bean.entities: render_bean_entities(context, bean)
         if bean.summary: ui.markdown(bean.summary).classes("bean-body truncate-multiline")
-        render_read_more(context, bean)
+        # render_read_more(context, bean)
         render_bean_actions(context, bean).classes(STRETCH_FIT)
     return view
 
@@ -605,7 +606,7 @@ def render_bean_actions(context: Context, bean: Bean):
 
     # async def open_read():
     #     context.log("opened", url=bean.url)
-    #     if bean.kind == GENERATED: internal_nav("articles", bean.url)
+    #     if bean.kind == OPED: internal_nav("articles", bean.url)
     #     else: nav(bean.url, new_tab=True)
 
     async def show_bug_report():
@@ -635,7 +636,7 @@ def render_bean_actions(context: Context, bean: Bean):
         with ui.button_group().props(ACTION_BUTTON_PROPS).classes("p-0 m-0"):
             # icon = "auto_stories" "read_more" "eyeglasses" "search"
             # ui.button(icon="auto_stories", on_click=open_read).props(ACTION_BUTTON_PROPS).tooltip("Read the full article") 
-            if bean.kind != GENERATED: ui.button(icon="auto_stories", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
+            if bean.kind != OPED: ui.button(icon="auto_stories", on_click=lambda: internal_nav("related", url=bean.url)).props(ACTION_BUTTON_PROPS).tooltip("More like this")
             with ui.button(icon="share").props(ACTION_BUTTON_PROPS):
                 with ui.menu().props("auto-close"):
                     render_share_buttons(context, bean).classes("gap-1 m-0 p-0")

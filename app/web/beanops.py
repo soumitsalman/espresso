@@ -13,28 +13,26 @@ CACHE_SIZE = 100
 BEAN_HEADER_FIELDS = {
     K_ID: 1, K_URL: 1, K_TITLE: 1,
     K_KIND: 1, K_IMAGEURL: 1, 
-    K_SOURCE: 1, K_SITE_NAME: 1, K_SITE_BASE_URL: 1, K_AUTHOR: 1,
+    K_SOURCE: 1, K_AUTHOR: 1,
     K_CATEGORIES: 1, 
     K_REGIONS: 1, 
     K_CREATED: 1, 
-    K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
+    # K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
+    "chatter": 1, "publisher": 1
 }
 BEAN_SUMMARY_FIELDS = {K_ID: 1, K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
 WHOLE_BEAN_FIELDS = {
-    K_CONTENT: 0, K_IS_SCRAPED: 0,
+    K_CONTENT: 0,
     K_COLLECTED: 0, 
     K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
     K_GIST: 0, 
-    K_TRENDSCORE: 0, 
-    K_NUM_WORDS_CONTENT: 0, K_NUM_WORDS_SUMMARY:0, K_NUM_WORDS_TITLE:0
+    K_TRENDSCORE: 0
 }
 WHOLE_GENERATED_BEAN_FIELDS = {
-    K_IS_SCRAPED: 0,
     K_COLLECTED: 0, 
     K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
     K_GIST: 0, 
-    K_TRENDSCORE: 0, 
-    K_NUM_WORDS_CONTENT: 0, K_NUM_WORDS_SUMMARY:0, K_NUM_WORDS_TITLE:0
+    K_TRENDSCORE: 0
 }
 
 @cached(max_size=1, ttl=ONE_WEEK)
@@ -200,11 +198,7 @@ def create_filter(
     created_in_last_ndays: int,
     updated_in_last_ndays: int
 ) -> dict:   
-    filter = {
-        K_NUM_WORDS_TITLE: {"$gte": config.filters.bean.min_title_len},
-        K_GIST: {"$exists": True},
-        K_CLUSTER_ID: {"$exists": True}
-    }
+    filter = {}
     if kind: filter[K_KIND] = lower_case(kind)
     if sources: filter["$or"] = [
         {K_SOURCE: case_insensitive(sources)},
@@ -214,10 +208,10 @@ def create_filter(
     if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
     if updated_in_last_ndays: filter.update(updated_in(updated_in_last_ndays))
 
-    if isinstance(tags, str): filter[K_TAGS] = lower_case(tags)
+    if isinstance(tags, str): filter[K_ENTITIES] = lower_case(tags)
     elif isinstance(tags, list):
-        if all(isinstance(tag, str) for tag in tags): filter[K_TAGS] = lower_case(tags)
-        elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{K_TAGS: lower_case(tag)} for tag in tags if tag] 
+        if all(isinstance(tag, str) for tag in tags): filter[K_ENTITIES] = lower_case(tags)
+        elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{K_ENTITIES: lower_case(tag)} for tag in tags if tag] 
     
     return filter
 
@@ -226,9 +220,9 @@ def create_filter_for_generated_bean(
     tags: str|list[str]|list[list[str]],
     created_in_last_ndays: int
 ) -> dict:   
-    filter = {K_KIND: GENERATED}    
-    if tags: filter[K_TAGS] = lower_case(tags)
-    if page and page.query_tags: filter[K_TAGS] = lower_case(page.query_tags)
+    filter = {K_KIND: OPED}    
+    if tags: filter[K_ENTITIES] = lower_case(tags)
+    if page and page.query_tags: filter[K_ENTITIES] = lower_case(page.query_tags)
     if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
     return filter
 

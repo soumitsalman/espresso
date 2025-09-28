@@ -28,7 +28,8 @@ async def render_home_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_home(context.kind, context.tags, None, context.last_ndays, context.sort_by, start, limit)
     
-    get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(tags=None, sources=None, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags)
+    # get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(tags=None, sources=None, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags)
+    get_filter_tags = None
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
@@ -78,7 +79,8 @@ async def render_stored_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_stored_page(context.page, context.kind, context.tags, context.last_ndays, context.sort_by, start, limit)
         
-    get_filter_tags = lambda: beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
+    # get_filter_tags = lambda: beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
+    get_filter_tags = None
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
@@ -106,7 +108,8 @@ async def render_custom_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_custom_page(context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
         
-    get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
+    # get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
+    get_filter_tags = None
 
     initial_tags = context.tags
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
@@ -141,7 +144,8 @@ async def render_bean_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_similar_beans(bean, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
 
-    get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
+    # get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
+    get_filters_items = None
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
