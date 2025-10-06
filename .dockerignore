@@ -1,9 +1,11 @@
 *.env
 *.json
 *.log
-/.venv
-/.deployment
-*__pycache__
-/data
+.venv
+.deployment
 .nicegui
-.models
+app/nlp/foundry
+app/nlp/tests
+setup.sh
+__pycache__
+*.git

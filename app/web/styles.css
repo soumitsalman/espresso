@@ -37,18 +37,12 @@ body {
     max-width: 1200ch; 
 }
 
-.ellipsis-60 {
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    max-width: 60ch; 
-    white-space: nowrap;
-}
-
-.tag * {
+.truncate-multiline {
+    display: -webkit-box;
+    -webkit-line-clamp: 8; /* Number of lines */
+    line-clamp: 8; /* Standard property for compatibility */
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 30ch; 
-    white-space: nowrap;
 }
 
 .banner {

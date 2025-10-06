@@ -4,8 +4,6 @@ from nicegui.binding import BindableProperty, bind_from
 from typing import cast
 from datetime import datetime as dt
 from itertools import groupby
-from typing import Callable
-from icecream import ic
 from app.shared.utils import *
 
 def groupby_date(items: list, date_field):

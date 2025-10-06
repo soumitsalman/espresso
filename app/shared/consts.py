@@ -1,4 +1,41 @@
-# messages
+### Time Values ###
+HALF_HOUR = 1800
+ONE_HOUR = 3600
+FOUR_HOURS = 14400
+ONE_DAY = 86400
+ONE_WEEK = 604800
+
+### Query limits ###
+MIN_WINDOW = 1
+MAX_WINDOW = 30
+MIN_LIMIT = 1
+MAX_LIMIT = 100
+
+### Oauth related constants ###
+GOOGLE_SERVER_METADATA_URL = 'https://accounts.google.com/.well-known/openid-configuration'
+GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/auth'
+GOOGLE_ACCESS_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+GOOGLE_API_BASE_URL = 'https://www.googleapis.com/oauth2/v1/'
+GOOGLE_USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo'
+GOOGLE_OAUTH_SCOPE = {'scope': 'openid email profile'}
+
+SLACK_SERVER_METADATA_URL = 'https://slack.com/.well-known/openid-configuration'
+SLACK_AUTHORIZE_URL = 'https://slack.com/openid/connect/authorize'
+SLACK_ACCESS_TOKEN_URL = 'https://slack.com/api/openid.connect.token'
+SLACK_API_BASE_URL = 'https://slack.com/api'
+SLACK_OAUTH_SCOPE = {'scope': 'openid profile email'}
+
+LINKEDIN_AUTHORIZE_URL = 'https://www.linkedin.com/oauth/v2/authorization'
+LINKEDIN_ACCESS_TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
+LINKEDIN_API_BASE_URL = 'https://api.linkedin.com/v2'
+LINKEDIN_OAUTH_SCOPE = {'scope': 'openid profile email'}
+
+REDDIT_AUTHORIZE_URL = 'https://www.reddit.com/api/v1/authorize'
+REDDIT_ACCESS_TOKEN_URL = 'https://www.reddit.com/api/v1/access_token'
+REDDIT_API_BASE_URL = 'https://oauth.reddit.com'
+REDDIT_OAUTH_SCOPE = {'scope': 'identity mysubreddits'}
+
+### User Messages ###
 NO_INTERESTS_MESSAGE = "Is there anything under god's green earth that you find interesting? Just do some clickittyclack and tell us what floats your boat."
 NO_MORE_BEANS = "Thass'it ... Se acabo! Go get some :coffee:"
 MORE_BEANS = "More stories in the queue. Type 'more' for loading the next page."

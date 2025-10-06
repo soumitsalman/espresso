@@ -1,6 +1,6 @@
-FROM python:3.12-slim
+FROM python:3.12 AS builder
 
-RUN apt update && apt upgrade -y
+RUN apt update
 RUN apt install -y \
     cmake \
     make \
@@ -9,15 +9,31 @@ RUN apt install -y \
     wget \
     git
 
+WORKDIR /build
+
+COPY requirements.txt .
+COPY app/pybeansack/requirements.txt pybeansack-requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt -t /python-deps
+RUN pip install --no-cache-dir -r pybeansack-requirements.txt -t /python-deps
+
+FROM python:3.12-slim
+
+# Install minimal runtime dependencies
+RUN apt update && apt install -y \
+    libgomp1 \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /espresso
-COPY . . 
 
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
-RUN pip install --no-cache-dir --upgrade -r app/pybeansack/requirements.txt
+COPY --from=builder /python-deps /usr/local/lib/python3.12/site-packages/
+COPY . .
+RUN rm -r app/connectors app/slack
 
-RUN mkdir -p /espresso/.models
-RUN wget -O /espresso/.models/gist-small-embeddingv-0-q8.gguf https://huggingface.co/soumitsr/GIST-small-Embedding-v0-Q8_0-GGUF/resolve/main/gist-small-embedding-v0-q8_0.gguf
-ENV EMBEDDER_PATH=/espresso/.models/gist-small-embeddingv-0-q8.gguf
+ENV EMBEDDER_PATH=/espresso/.models/gist-small-embedding-v0-q8_0.gguf
+ENV OTEL_SERVICE_NAME=ESPRESSO-WEB
+ENV MODE=web
 
 EXPOSE 8080
 CMD ["python3", "run.py"]

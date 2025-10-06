@@ -1,0 +1,101 @@
+[filters]
+[filters.bean]
+max_entities = 5
+max_related = 5
+max_regions = 1
+max_categories = 1
+min_title_len = 8
+max_body_len = 400
+body = "whole"
+
+[filters.page]
+categories = [
+    "Artificial Intelligence",
+    "Aviation",
+    "Business",
+    "Crytocurrency",
+    "Cybersecurity",
+    "Environment",
+    "Gadgets",
+    "Government",
+    "Software Engineering",
+    "Startups"
+]
+max_tags = 7
+max_beans = 5
+kinds = ["news", "blog"]
+default_accuracy = 0.75
+default_window = 7
+default_kind = "news"
+default_sort_by = "Latest"
+
+[rendering]
+[rendering.bean]
+body = "expandable"
+
+[navigation]
+default_pages = [
+    "artificial-intelligence",
+    "aviation---aerospace",
+    "business---finance",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "food---health",
+    "gadgets---iot",
+    "government---politics",
+    "hpc---datacenters",
+    "robotics---manufacturing",
+    "science---mathematics",
+    "software-engineering",
+    "solar-energy",
+    "startups---vcs",
+    "video-games---virtual-reality"
+]
+default_channels = [
+    "artificial-intelligence",
+    "automotive",
+    "aviation---aerospace",
+    "business---finance",
+    "career---professional-skills",
+    "cryptocurrency---blockchain",
+    "cybersecurity",
+    "environment---clean-energy",
+    "food---health",
+    "gadgets---iot",
+    "government---politics",
+    "hpc---datacenters",
+    "leadership---people-management",
+    "logistics---transportation",
+    "robotics---manufacturing",
+    "science---mathematics",
+    "software-engineering",
+    "solar-energy",
+    "startups---vcs",
+    "video-games---virtual-reality"]
+
+outlets = [
+    "business-insider",
+    "bloomberg",
+    "amazon",
+    "apple",
+    "google",
+    "hackernews",
+    "huggingface",
+    "microsoft",
+    "finsmes",
+    "venturebeat",
+    "reddit"
+]
+
+tags = [
+    "bitcoin",
+    "elon-musk",
+    "donald-trump",
+    "doge"
+]
+
+[app]
+name = "Espresso"
+description = "Espresso - AI News Automation by Project Cafecito"
+google_analytics_id = "G-NBSTNYWPG1"

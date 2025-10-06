@@ -1,13 +1,8 @@
 llama-cpp-python
-nicegui
 fastapi[standard]
-slowapi
-authlib
-starlette
+fastmcp
 slack-bolt
-pydantic
 retry
-pyjwt
 humanize
 memoization
 azure-monitor-opentelemetry
