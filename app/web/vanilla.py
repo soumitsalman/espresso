@@ -129,10 +129,6 @@ async def render_custom_page(context: Context):
 async def render_bean_page(context: Context):
     bean = context.page
     await load_and_render_frame(context)
-    # with ui.column(align_items="stretch").classes("w-full"):
-        # sk = render_skeleton_beans(1)
-        # bean = await run.io_bound(db.get_bean, url=context.page.url, project=beanops.WHOLE_BEAN_FIELDS)
-        # sk.delete()
     render_whole_bean(context, bean).classes("w-full")
     render_thick_separator().classes("w-full")
 

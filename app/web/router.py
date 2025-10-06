@@ -147,10 +147,10 @@ def validate_bean(url: str) -> Page:
     if not bean: raise HTTPException(status_code=404, detail=f"{url} not found")
     return bean
 
-def validate_generated_bean(bean_id: str) -> Page:
-    bean = db.get_bean(_id=bean_id, kind=GENERATED, project=beanops.WHOLE_GENERATED_BEAN_FIELDS)
-    if not bean: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
-    return bean
+# def validate_generated_bean(bean_id: str) -> Page:
+#     bean = db.get_bean(_id=bean_id, kind=GENERATED, project=beanops.WHOLE_GENERATED_BEAN_FIELDS)
+#     if not bean: raise HTTPException(status_code=404, detail=f"{bean_id} not found")
+#     return bean
 
 def validate_doc(doc_id: str):
     if not bool(os.path.exists(f"docs/{doc_id}")):
@@ -278,7 +278,7 @@ async def image(image_id: str = Depends(validate_image, use_cache=True)):
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def home(request: Request):
     context = create_context("home", request)  
-    context.last_ndays = MIN_WINDOW
+    context.last_ndays = 2
     await vanilla.render_home_page(context)
 
 @ui.page("/sources/{source_id}")
@@ -371,10 +371,10 @@ async def stored_page(request: Request, page_id: Page = Depends(validate_page, u
         raise HTTPException(status_code=401, detail="Unauthorized")
     await vanilla.render_stored_page(context)
 
-@ui.page("/articles/{bean_id}")
-async def generated_beans(request: Request, bean_id: Page = Depends(validate_generated_bean, use_cache=True)):
-    context = create_context(bean_id, request, GENERATED)
-    await vanilla.render_bean_page(context)
+# @ui.page("/articles/{bean_id}")
+# async def generated_beans(request: Request, bean_id: Page = Depends(validate_generated_bean, use_cache=True)):
+#     context = create_context(bean_id, request, GENERATED)
+#     await vanilla.render_bean_page(context)
 
 @ui.page("/user/register", title="Espresso User Registration")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)

@@ -516,9 +516,10 @@ def render_tag_as_chip(title, target=None, max_width: str = "25ch"):
     return view
 
 def render_bean_source_tags(context: Context, bean: Bean):
+    site_name = bean.publisher.title or bean.source if bean.publisher else bean.source
     with ui.row(align_items="center", wrap=False)as view:
         render_tag_as_chip(naturalday(bean.created))
-        render_tag_as_chip(bean.site_name or bean.source, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
+        render_tag_as_chip(site_name, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
         if bean.author: render_tag_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[12ch]")
     return view
 
@@ -560,9 +561,12 @@ def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
     max_width = "25ch" if truncate else None
     with ui.row(align_items="center") as view:
         render_tag_as_chip(naturalday(bean.created), max_width=max_width)
-        render_tag_as_chip(bean.source, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
-        # TODO: this is temporary fix for the author tag. remove later
-        if bean.author and bean.author != "[no-author]": render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
+        if bean.publisher:
+            site_name = bean.publisher.title or bean.source
+            favicon_url = bean.publisher.favicon or favicon(bean)
+        render_tag_as_chip(site_name, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon_url)
+        
+        if bean.author: render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
         if bean.categories: render_tag_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]), max_width=max_width)         
         if bean.regions: render_tag_as_chip(f"📍 {bean.regions[0]}", create_target('regions', bean.regions[0]), max_width=max_width)
         if bean.chatter:
@@ -573,15 +577,16 @@ def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
 
 def render_read_more(context: Context, bean: Bean):
     link = create_target("articles", bean.id) if bean.kind == OPED else bean.url
+    where = bean.publisher.title or bean.publisher.base_url or bean.source if bean.publisher else bean.source
     return render_tag_as_link("Read More ...", link) \
         .on("click", lambda: context.log("opened", url=link)) \
-        .tooltip(f"Read the full article in {bean.site_name or bean.site_base_url}")
+        .tooltip(f"Read the full article in {where}")
 
 def render_bean_summary(context: Context, bean: Bean):    
     with ui.column(align_items="stretch").classes("w-full h-full") as view:
         if bean.entities: render_bean_entities(context, bean)
         if bean.summary: ui.markdown(bean.summary).classes("bean-body truncate-multiline")
-        # render_read_more(context, bean)
+        render_read_more(context, bean)
         render_bean_actions(context, bean).classes(STRETCH_FIT)
     return view
 
