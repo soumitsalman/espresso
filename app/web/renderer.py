@@ -516,22 +516,11 @@ def render_tag_as_chip(title, target=None, max_width: str = "25ch"):
     return view
 
 def render_bean_source_tags(context: Context, bean: Bean):
-    site_name = bean.publisher.title or bean.source if bean.publisher else bean.source
     with ui.row(align_items="center", wrap=False)as view:
         render_tag_as_chip(naturalday(bean.created))
-        render_tag_as_chip(site_name, create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
+        render_tag_as_chip(site_name(bean), create_target("sources", bean.source)).props("icon=img:"+favicon(bean))
         if bean.author: render_tag_as_chip(f"✍️ {bean.author}").classes(remove="max-w-[25ch]", add="max-w-[12ch]")
     return view
-
-# def render_bean_source(context: Context, bean: Bean):
-#     with render_bean_attribute('', create_page_target("/sources", bean.source)) as view:        
-#         ui.icon("img:"+ favicon(bean)).classes("mr-1")
-#         ui.label(bean.site_name or bean.source)
-#     return view
-    # with ui.row(wrap=False, align_items="center").classes("gap-1") as view:        
-    #     ui.icon("img:"+ favicon(bean), size="xs")
-    #     render_bean_attribute(bean.site_name or bean.source, create_page_target("/sources", bean.source))
-    # return view
 
 def render_bean_social_and_classification_tags(context: Context, bean: Bean): 
     with ui.row(align_items="center") as view:    
@@ -556,15 +545,13 @@ def render_bean_social_tags(context: Context, bean: Bean):
         if bean.shares and bean.shares > 1: render_tag_as_chip(f"🔗 {bean.shares}").tooltip(f"{bean.shares} shares across various social media sources") # another option 🗞️
     return view
 
+
 def render_bean_tags(context: Context, bean: Bean, truncate: bool = True):
     """Renders all bean attributes including publish date, source, author, categories, regions etc."""
     max_width = "25ch" if truncate else None
     with ui.row(align_items="center") as view:
         render_tag_as_chip(naturalday(bean.created), max_width=max_width)
-        if bean.publisher:
-            site_name = bean.publisher.title or bean.source
-            favicon_url = bean.publisher.favicon or favicon(bean)
-        render_tag_as_chip(site_name, create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon_url)
+        render_tag_as_chip(site_name(bean), create_target("sources", bean.source), max_width=max_width).props("icon=img:"+favicon(bean))
         
         if bean.author: render_tag_as_chip(f"✍️ {bean.author}", max_width="15ch" if truncate else None)    
         if bean.categories: render_tag_as_chip(f"🏷️ {bean.categories[0]}", create_target('categories', bean.categories[0]), max_width=max_width)         
