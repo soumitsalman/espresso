@@ -15,7 +15,7 @@ MAINTAIN_VALUE = "__MAINTAIN_VALUE__"
 async def render_home_page(context: Context):
     _, _, nav_panel, _ = render_frame(context)
     render_banner("News, Blogs & Articles").classes("w-full")
-    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    # briefings_panel = ui.column(align_items="stretch").classes("w-full")
     feeds_panel = ui.column(align_items="stretch").classes("w-full")
     pages_panel = ui.row().classes("w-full gap-1")    
     
@@ -38,7 +38,7 @@ async def render_home_page(context: Context):
     await asyncio.gather(*[
         load_navigation_panel(context, nav_panel),
         load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel),
-        _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
+        # _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
         _load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter)
     ])
 
@@ -67,7 +67,7 @@ async def render_home_page(context: Context):
 async def render_stored_page(context: Context):  
     _, _, nav_panel, _ = render_frame(context)
     render_page_banner(context).classes("w-full")
-    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    # briefings_panel = ui.column(align_items="stretch").classes("w-full")
     feeds_panel = ui.column(align_items="stretch").classes("w-full")
     pages_panel = ui.row().classes("w-full gap-1")
    
@@ -89,14 +89,14 @@ async def render_stored_page(context: Context):
     await asyncio.gather(*[
         load_navigation_panel(context, nav_panel),
         load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel),
-        _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
+        # _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
         _load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter)
     ])
 
 async def render_custom_page(context: Context): 
     _, _, nav_panel, _ = render_frame(context)
     render_page_banner(context).classes("w-full")
-    briefings_panel = ui.column(align_items="stretch").classes("w-full")
+    # briefings_panel = ui.column(align_items="stretch").classes("w-full")
     feeds_panel = ui.column(align_items="stretch").classes("w-full")
     pages_panel = ui.row().classes("w-full gap-1")
 
@@ -121,7 +121,7 @@ async def render_custom_page(context: Context):
         load_navigation_panel(context, nav_panel),
         load_and_render_page_names(context, beanops.get_page_suggestions, pages_panel)
     ]
-    if context.tags or (context.sources and 'cafecito' in context.sources): tasks.append(_load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel))
+    # if context.tags or (context.sources and 'cafecito' in context.sources): tasks.append(_load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel))
     if context.tags or (context.sources and "cafecito" not in context.sources): tasks.append(_load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter))
     
     await asyncio.gather(*tasks)
