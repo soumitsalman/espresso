@@ -94,6 +94,7 @@ def search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|lis
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
     if query: return db.vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
+    # if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
 
 # @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_similar_beans(bean: Bean, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -121,6 +122,7 @@ def count_search_beans(query: str, accuracy: float, kind: str, tags: str|list[st
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
     if query: return db.count_vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, limit=limit)  
+    # if query: return db.count_text_search_beans(query=query, filter=filter, limit=limit)
     return 0
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
@@ -190,6 +192,12 @@ def is_bookmarked(context: Context, url: str):
     if not context.is_user_registered: return False
     return db.is_bookmarked(context.user, url)
 
+_make_tags_filter = lambda tags:  [
+    {K_ENTITIES: field_value(tags)},
+    {K_REGIONS: field_value(tags)},
+    {K_CATEGORIES: field_value(tags)}
+] 
+
 def create_filter(
     kind: str|list[str],
     tags: str|list[str]|list[list[str]],
@@ -208,10 +216,10 @@ def create_filter(
     if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
     if updated_in_last_ndays: filter.update(updated_in(updated_in_last_ndays))
 
-    if isinstance(tags, str): filter[K_ENTITIES] = lower_case(tags)
+    if isinstance(tags, str): filter["$or"] = _make_tags_filter(tags)
     elif isinstance(tags, list):
-        if all(isinstance(tag, str) for tag in tags): filter[K_ENTITIES] = lower_case(tags)
-        elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{K_ENTITIES: lower_case(tag)} for tag in tags if tag] 
+        if all(isinstance(tag, str) for tag in tags): filter["$or"] = _make_tags_filter(tags)
+        elif any(isinstance(tag, list) for tag in tags): filter["$and"] = [{"$or": _make_tags_filter(tag)} for tag in tags if tag] 
     
     return filter
 
@@ -221,7 +229,7 @@ def create_filter_for_generated_bean(
     created_in_last_ndays: int
 ) -> dict:   
     filter = {K_KIND: OPED}    
-    if tags: filter[K_ENTITIES] = lower_case(tags)
+    if tags: filter["$or"] = _make_tags_filter(tags)
     if page and page.query_tags: filter[K_ENTITIES] = lower_case(page.query_tags)
     if created_in_last_ndays: filter.update(created_in(created_in_last_ndays))
     return filter
