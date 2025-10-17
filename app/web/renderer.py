@@ -4,7 +4,7 @@ import random
 import threading
 from typing import Awaitable, Callable
 from urllib.parse import urlencode, urljoin
-from nicegui import ui, background_tasks, run
+from nicegui import ui, run, app
 from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.consts import *
@@ -133,8 +133,28 @@ async def load_and_render_frame(context: Context):
     _, _, nav_panel, _ = render_frame(context)
     await load_navigation_panel(context, nav_panel)
 
+def _render_announcement():
+    dismissed = app.storage.user.get("announcement_dismissed", False)
+    if dismissed: return None
+
+    def _dismiss_announcement():
+        app.storage.user["announcement_dismissed"] = True
+        announcement.set_visibility(False)
+
+    with ui.item().classes("w-full justify-between rounded-borders bg-dark py-0") as announcement:
+        with ui.item_section().props("avatar"):
+            ui.icon("luggage", color="secondary")
+        
+        with ui.item_section():
+            ui.markdown("We Are [Moving](https://beans.cafecito.tech)! But [why](https://espresso-cafecito.ghost.io/espresso-publications/)? Also, now they call me **Beans**.")
+        
+        with ui.item_section().props("side"):
+            ui.button("Dismiss", icon="close", on_click=_dismiss_announcement).props("unelevated rounded size=sm no-caps")
+    return announcement
+
 def render_frame(context: Context):
     header, nav_button, nav_panel = render_header(context)
+    _render_announcement()
     footer = render_footer(context)
     return header, nav_button, nav_panel, footer
 
@@ -149,7 +169,7 @@ def render_header(context: Context):
         with ui.button(on_click=internal_nav).props("unelevated").classes("q-px-xs"):
             with ui.avatar(square=True, size="md").classes("rounded-borders"):
                 ui.image("images/espresso.png")
-            ui.label("Espresso").classes("q-ml-sm")
+            ui.label("Beans").classes("q-ml-sm")
             
         nav_button = ui.button(icon="local_cafe_outlined", on_click=nav_panel.toggle).props("unelevated").classes("lt-sm")
         ui.button(icon="search_outlined", on_click=search_dialog.open).props("unelevated").classes("lt-sm")
