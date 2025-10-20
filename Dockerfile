@@ -1,13 +1,13 @@
 FROM python:3.12 AS builder
 
 RUN apt update
-RUN apt install -y \
-    cmake \
-    make \
-    g++ \
-    build-essential \
-    wget \
-    git
+# RUN apt install -y \
+#     cmake \
+#     make \
+#     g++ \
+#     build-essential \
+#     wget \
+#     git
 
 WORKDIR /build
 
@@ -20,10 +20,10 @@ RUN pip install --no-cache-dir -r pybeansack-requirements.txt -t /python-deps
 FROM python:3.12-slim
 
 # Install minimal runtime dependencies
-RUN apt update && apt install -y \
-    libgomp1 \
-    libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
+# RUN apt update && apt install -y \
+#     libgomp1 \
+#     libstdc++6 \
+#     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /espresso
 
@@ -31,7 +31,7 @@ COPY --from=builder /python-deps /usr/local/lib/python3.12/site-packages/
 COPY . .
 RUN rm -r app/connectors app/slack
 
-ENV EMBEDDER_PATH=/espresso/.models/gist-small-embedding-v0-q8_0.gguf
+# ENV EMBEDDER_PATH=/espresso/.models/gist-small-embedding-v0-q8_0.gguf
 ENV OTEL_SERVICE_NAME=ESPRESSO-WEB
 ENV MODE=web
 

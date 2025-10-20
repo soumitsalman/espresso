@@ -93,8 +93,8 @@ def search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|lis
     """Searches and looks for news articles, social media posts, blog articles that match user interest, topic or query represented by `topic`."""  
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if query: return db.vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
-    # if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
+    # if query: return db.vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)    
+    if query: return db.text_search_beans(query=query, filter=filter, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
 
 # @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
 def get_similar_beans(bean: Bean, kind: str|list[str], tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -121,8 +121,8 @@ def count_generated_beans(page: Page, tags, last_ndays: int, limit: int):
 def count_search_beans(query: str, accuracy: float, kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, limit: int) -> int:
     filter=create_filter(kind, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if query: return db.count_vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, limit=limit)  
-    # if query: return db.count_text_search_beans(query=query, filter=filter, limit=limit)
+    # if query: return db.count_vector_search_beans(embedding=_embed(query), similarity_score=accuracy, filter=filter, limit=limit)  
+    if query: return db.count_text_search_beans(query=query, filter=filter, limit=limit)
     return 0
 
 @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
@@ -155,10 +155,17 @@ def get_filter_tags_for_custom_page(tags: str|list[str]|list[list[str]], sources
 def search_filter_tags(query: str, accuracy: float, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, start: int, limit: int) -> list[Bean]:
     filter=create_filter(None, tags, sources, None, last_ndays, None)
     accuracy = accuracy or config.filters.page.default_accuracy
-    if query: return db.vector_search_tags(
-        bean_embedding=_embed(query), 
-        bean_similarity_score=accuracy,         
-        bean_filter=filter, 
+    # if query: return db.vector_search_tags(
+    #     bean_embedding=_embed(query), 
+    #     bean_similarity_score=accuracy,         
+    #     bean_filter=filter, 
+    #     tag_field = K_ENTITIES,
+    #     remove_tags=tags,
+    #     skip=start, limit=limit
+    # )  
+    if query: return db.text_search_tags(
+        query=query, 
+        filter=filter, 
         tag_field = K_ENTITIES,
         remove_tags=tags,
         skip=start, limit=limit

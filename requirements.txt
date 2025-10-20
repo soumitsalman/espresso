@@ -1,5 +1,4 @@
-llama-cpp-python
-nicegui
+nicegui == 2.4.0
 fastapi[standard]
 slowapi
 authlib

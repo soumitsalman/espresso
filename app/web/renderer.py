@@ -159,7 +159,9 @@ def render_frame(context: Context):
     return header, nav_button, nav_panel, footer
 
 def render_header(context: Context):
-    ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)    
+    ui.colors(primary=PRIMARY_COLOR, secondary=SECONDARY_COLOR)  
+    ui.add_css(CSS_FILE)    
+  
     with ui.dialog() as search_dialog, ui.card(align_items="stretch").classes("w-full"):
         render_search_bar(context).classes("fit")      
 

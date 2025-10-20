@@ -27,7 +27,7 @@ kinds = ["news", "blog"]
 default_accuracy = 0.75
 default_window = 7
 default_kind = "news"
-default_sort_by = "Latest"
+default_sort_by = "Trending"
 
 [rendering]
 [rendering.bean]
@@ -96,6 +96,6 @@ tags = [
 ]
 
 [app]
-name = "Espresso"
-description = "Espresso - AI News Automation by Project Cafecito"
+name = "Beans"
+description = "Espresso Beans - AI News Automation by Project Cafecito"
 google_analytics_id = "G-NBSTNYWPG1"

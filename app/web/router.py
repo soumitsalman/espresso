@@ -23,7 +23,7 @@ from slowapi.util import get_ipaddr
 REGISTRATION_INFO_KEY = "registration_info"
 
 JWT_TOKEN_KEY = 'espressotoken'
-JWT_TOKEN_LIFETIME = timedelta(days=30)
+JWT_TOKEN_LIFETIME = timedelta(weeks=26)
 JWT_TOKEN_REFRESH_WINDOW = timedelta(hours=1)
 
 LIMIT_5_A_MINUTE = "5/minute"
@@ -346,7 +346,7 @@ async def related(
     context.sources = sources
     await vanilla.render_bean_page(context)
 
-@ui.page("/search", title="Espresso Search")
+@ui.page("/search", title="Search Beans")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def search(request: Request, 
     q: str = Q,
@@ -376,7 +376,7 @@ async def stored_page(request: Request, page_id: Page = Depends(validate_page, u
 #     context = create_context(bean_id, request, GENERATED)
 #     await vanilla.render_bean_page(context)
 
-@ui.page("/user/register", title="Espresso User Registration")
+@ui.page("/user/register", title="Beans User Registration")
 @limiter.limit(LIMIT_5_A_MINUTE, error_message=LIMIT_ERROR_MSG)
 async def register_user(request: Request, userinfo: dict = Depends(validate_registration)):
     context = Context("registration", userinfo)
@@ -389,7 +389,6 @@ def run():
     ui.add_head_html(read_file(renderer.SEO_HTML), shared=True)
     ui.add_head_html(renderer.MATERIAL_ICONS, shared=True)
     ui.add_head_html(renderer.GOOGLE_ANALYTICS_SCRIPT.format(id=config.app.google_analytics_id), shared=True)
-    ui.add_css(renderer.CSS_FILE, shared=True)    
     ui.run(
         title=config.app.description, 
         storage_secret=os.getenv('APP_STORAGE_SECRET'),
@@ -398,6 +397,6 @@ def run():
         host="0.0.0.0",
         port=8080, 
         show=False,
-        uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
+        # uvicorn_reload_includes="*.py,*/web/styles.css,*.toml",
         proxy_headers=True
     )

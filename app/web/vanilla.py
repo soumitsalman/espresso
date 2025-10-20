@@ -28,8 +28,7 @@ async def render_home_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_home(context.kind, context.tags, None, context.last_ndays, context.sort_by, start, limit)
     
-    # get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(tags=None, sources=None, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags)
-    get_filter_tags = None
+    get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(tags=None, sources=None, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags)
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
@@ -41,7 +40,6 @@ async def render_home_page(context: Context):
         # _load_and_render_briefings_panel(context, retrieve_briefings, briefings_panel),
         _load_and_render_feeds_panel(context, retrieve_feeds, feeds_panel, get_filter_tags, apply_filter)
     ])
-
 
 # async def render_trending_snapshot(user):
 #     render_header(user)
@@ -79,8 +77,7 @@ async def render_stored_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_stored_page(context.page, context.kind, context.tags, context.last_ndays, context.sort_by, start, limit)
         
-    # get_filter_tags = lambda: beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
-    get_filter_tags = None
+    get_filter_tags = lambda: beanops.get_filter_tags_for_stored_page(context.page, context.last_ndays, 0, config.filters.page.max_tags)
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
@@ -108,10 +105,9 @@ async def render_custom_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_beans_for_custom_page(context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
         
-    # get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
-    get_filter_tags = None
+    get_filter_tags = lambda: beanops.get_filter_tags_for_custom_page(context.tags, context.sources, context.last_ndays, 0, config.filters.page.max_tags)
 
-    initial_tags = context.tags
+    initial_tags = ic(context.tags)
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE:
             context.tags = [initial_tags, filter_item] if (initial_tags and filter_item) else (initial_tags or filter_item)
@@ -140,8 +136,7 @@ async def render_bean_page(context: Context):
         context.log("retrieve", start=start, limit=limit)
         return beanops.get_similar_beans(bean, context.kind, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, sort_by=context.sort_by, start=start, limit=limit)
 
-    # get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
-    get_filters_items = None
+    get_filters_items = lambda: random.sample(bean.entities, min(len(bean.entities), config.filters.page.max_tags)) if bean.entities else None
 
     def apply_filter(context: Context, filter_item: str|list[str] = MAINTAIN_VALUE):
         if filter_item is not MAINTAIN_VALUE: context.tags = filter_item
@@ -195,14 +190,14 @@ async def _load_and_render_feeds_panel(
         render_thick_separator()
         sk.delete()
 
-        if not get_filter_tags: return
-        with filter_panel:
-            tags_panel = await load_and_render_filter_tags(
-                context, 
-                get_filter_tags, 
-                on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
-            )
-            if tags_panel: tags_panel.classes("w-full lg:w-auto")
+    # if get_filter_tags:
+    #     with filter_panel:
+    #         tags_panel = await load_and_render_filter_tags(
+    #             context, 
+    #             get_filter_tags, 
+    #             on_selection_changed=lambda selected_item: apply_filter(filter_item=selected_item)
+    #         )
+    #         if tags_panel: tags_panel.classes("w-full lg:w-auto")
 
 async def render_search(context: Context): 
     initial_tags, context.kind = context.tags, config.filters.page.default_kind
@@ -240,13 +235,13 @@ async def render_search(context: Context):
     sk = render_skeleton_beans(3).classes("w-full")
     await render_search_result()
     sk.delete()
-    with filter_panel:
-        tags_panel = await load_and_render_filter_tags(
-            context, 
-            lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags),
-            lambda selected_item: apply_filter(filter_tags=selected_item)
-        )
-        if tags_panel: tags_panel.classes("w-full lg:w-auto")
+    # with filter_panel:
+    #     tags_panel = await load_and_render_filter_tags(
+    #         context, 
+    #         lambda: beanops.search_filter_tags(query=context.query, accuracy=context.accuracy, tags=context.tags, sources=context.sources, last_ndays=context.last_ndays, start=0, limit=config.filters.page.max_tags),
+    #         lambda selected_item: apply_filter(filter_tags=selected_item)
+    #     )
+    #     if tags_panel: tags_panel.classes("w-full lg:w-auto")
 
 async def render_registration(context: Context):
     userinfo = context.user
