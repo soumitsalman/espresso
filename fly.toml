@@ -12,7 +12,7 @@ processes = [ "app" ]
 idle_timeout = 600
 
 [[vm]]
-size = "shared-cpu-2x"
+size = "shared-cpu-1x"
 memory = "1gb"
 
 [build]
@@ -20,7 +20,7 @@ dockerfile = "Dockerfile"
 ignorefile = ".dockerignore"
 
 [env]
-APP_NAME = "Espresso"
+APP_NAME = "Beans"
 OTEL_SERVICE_NAME = "ESPRESSO-WEB"
 BASE_URL = "https://espresso.cafecito.tech"
 DB_NAME = "espresso"

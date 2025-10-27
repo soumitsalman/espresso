@@ -97,5 +97,5 @@ tags = [
 
 [app]
 name = "Beans"
-description = "Espresso Beans - AI News Automation by Project Cafecito"
+description = "Beans - AI News Automation by Project Cafecito"
 google_analytics_id = "G-NBSTNYWPG1"

@@ -20,12 +20,13 @@ SEO_HTML = "./app/web/seo.html"
 MATERIAL_ICONS = """<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">"""
 GOOGLE_ANALYTICS_SCRIPT = """
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KPG0Y2MBV9"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
-  function gtag(){{dataLayer.push(arguments);}}
+  function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', '{id}');
+
+  gtag('config', 'G-KPG0Y2MBV9');
 </script>
 """
 

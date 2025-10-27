@@ -388,7 +388,7 @@ def run():
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     ui.add_head_html(read_file(renderer.SEO_HTML), shared=True)
     ui.add_head_html(renderer.MATERIAL_ICONS, shared=True)
-    ui.add_head_html(renderer.GOOGLE_ANALYTICS_SCRIPT.format(id=config.app.google_analytics_id), shared=True)
+    ui.add_head_html(renderer.GOOGLE_ANALYTICS_SCRIPT, shared=True)
     ui.run(
         title=config.app.description, 
         storage_secret=os.getenv('APP_STORAGE_SECRET'),
