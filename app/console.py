@@ -7,7 +7,7 @@ from app.pybeansack.models import *
 from app.shared.consts import *
 from app.shared.utils import *
 from app.shared.embedder import *
-from app.shared.prompt_parser import *
+from app.slack.prompt_parser import *
 
 APP_NAME = "Espresso:"
 

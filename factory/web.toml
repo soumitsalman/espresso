@@ -25,6 +25,7 @@ max_tags = 7
 max_beans = 5
 kinds = ["news", "blog"]
 default_accuracy = 0.75
+default_limit = 5
 default_window = 7
 default_kind = "news"
 default_sort_by = "Trending"

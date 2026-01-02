@@ -1,3 +1,5 @@
+FAVICON_URL="https://cafecito-assets.sfo3.cdn.digitaloceanspaces.com/espresso-favicon.ico"
+
 ### Time Values ###
 HALF_HOUR = 1800
 ONE_HOUR = 3600

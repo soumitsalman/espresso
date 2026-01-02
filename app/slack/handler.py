@@ -2,12 +2,13 @@ from itertools import chain
 import re
 from queue import Queue
 
+from app.slack import prompt_parser
 from app.web import beanops
 from .renderer import *
 from .slack_stores import MongoInstallationStore
 from shared.utils import *
 from app.shared.consts import *
-from shared import prompt_parser, espressops
+from shared import espressops
 from icecream import ic
 from slack_bolt import App
 from slack_bolt.oauth.oauth_settings import OAuthSettings

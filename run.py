@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from app.shared import env
+from app.shared.utils import initialize_app
 
 load_dotenv()
 mode = os.getenv("MODE")
@@ -11,15 +11,15 @@ if __name__ in {"__main__", "__mp_main__"}:
         from app.web import maintenance
         maintenance.run()
     elif mode == "api":
-        env.load_env("./app/api/api.toml")
+        initialize_app("./factory/api.toml")
         from app.api import router
         router.run()
     elif mode == "mcp":
-        env.load_env("./app/api/mcp.toml")
+        initialize_app("./factory/mcp.toml")
         from app.api import mcprouter
         mcprouter.run()
     elif mode == "web":
-        env.load_env("./app/web/vanilla.toml")
+        initialize_app("./factory/web.toml")
         from app.web import router
         router.run()  
     # else:

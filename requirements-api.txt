@@ -1,4 +1,7 @@
-llama-cpp-python
+torch --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers
+onnxruntime
+optimum[onnx]
 fastapi[standard]
 fastmcp
 slack-bolt

@@ -1,7 +1,6 @@
 from memoization import cached
 from icecream import ic
 from nicegui import run
-from app.pybeansack.mongosack import *
 from app.pybeansack.models import *
 from app.shared.utils import *
 from app.shared.env import *
@@ -10,30 +9,39 @@ from app.web.context import *
 
 CACHE_SIZE = 100
 
-BEAN_HEADER_FIELDS = {
-    K_ID: 1, K_URL: 1, K_TITLE: 1,
-    K_KIND: 1, K_IMAGEURL: 1, 
-    K_SOURCE: 1, K_AUTHOR: 1,
-    K_CATEGORIES: 1, 
-    K_REGIONS: 1, 
-    K_CREATED: 1, 
-    # K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
-    "chatter": 1, "publisher": 1
-}
-BEAN_SUMMARY_FIELDS = {K_ID: 1, K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
-WHOLE_BEAN_FIELDS = {
-    K_CONTENT: 0,
-    K_COLLECTED: 0, 
-    K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
-    K_GIST: 0, 
-    K_TRENDSCORE: 0
-}
-WHOLE_GENERATED_BEAN_FIELDS = {
-    K_COLLECTED: 0, 
-    K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
-    K_GIST: 0, 
-    K_TRENDSCORE: 0
-}
+# BEAN_HEADER_FIELDS = {
+#     K_ID: 1, K_URL: 1, K_TITLE: 1,
+#     K_KIND: 1, K_IMAGEURL: 1, 
+#     K_SOURCE: 1, K_AUTHOR: 1,
+#     K_CATEGORIES: 1, 
+#     K_REGIONS: 1, 
+#     K_CREATED: 1, 
+#     # K_LIKES: 1, K_COMMENTS: 1, K_RELATED: 1, K_SHARES: 1
+#     "chatter": 1, "publisher": 1
+# }
+# BEAN_SUMMARY_FIELDS = {K_ID: 1, K_URL: 1, K_ENTITIES: 1, K_SUMMARY: 1}
+# WHOLE_BEAN_FIELDS = {
+#     K_CONTENT: 0,
+#     K_COLLECTED: 0, 
+#     K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
+#     K_GIST: 0, 
+#     K_TRENDSCORE: 0
+# }
+# WHOLE_GENERATED_BEAN_FIELDS = {
+#     K_COLLECTED: 0, 
+#     K_SEARCH_SCORE: 0, K_CLUSTER_ID: 0,
+#     K_GIST: 0, 
+#     K_TRENDSCORE: 0
+# }
+
+BEAN_HEADER_FIELDS = [
+    K_URL, K_TITLE, K_CREATED,
+    K_KIND, K_IMAGEURL, 
+    K_SOURCE, K_AUTHOR,
+    K_CATEGORIES, K_ENTITIES, K_REGIONS,    
+    K_LIKES, K_COMMENTS, K_SHARES, K_CLUSTER_SIZE
+]
+
 
 @cached(max_size=1, ttl=ONE_WEEK)
 def get_all_sources():
@@ -53,8 +61,16 @@ def load_bean_body(bean: Bean):
 @cached(max_size=CACHE_SIZE, ttl=ONE_HOUR)
 def get_beans_for_home(kind: str, tags: str|list[str], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
     """get one bean per cluster and per source"""
-    filter = create_filter(kind, tags, sources, None, last_ndays, None)
-    return db.query_beans(filter, [K_SOURCE, K_CLUSTER_ID], sort_by, start, limit, BEAN_HEADER_FIELDS)
+    # filter = create_filter(kind, tags, sources, None, last_ndays, None)
+    return db.query_aggregated_beans(
+        kind=kind,
+        created=ndays_ago(last_ndays),
+        entities=to_list(tags),
+        sources=to_list(sources),
+        limit=limit,
+        offset=start,
+        columns=BEAN_HEADER_FIELDS
+    )
 
 @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_stored_page(page: Page, kind: str, tags: str|list[str], last_ndays: int, sort_by, start: int, limit: int):
@@ -71,16 +87,7 @@ def get_beans_for_stored_page(page: Page, kind: str, tags: str|list[str], last_n
     if page.query_embedding: return db.vector_search_beans(embedding=page.query_embedding, similarity_score=page.query_distance or config.filters.page.default_accuracy, filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)
     if page.query_tags or page.query_sources: return db.query_beans(filter=filter, group_by=K_CLUSTER_ID, sort_by=sort_by, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
 
-# @cached(max_size=CACHE_SIZE, ttl=FOUR_HOURS)
-def get_generated_beans(page: Page, tags, last_ndays: int, start: int, limit: int):
-    filter=create_filter_for_generated_bean(page, tags, last_ndays)
-    if page and page.query_embedding: return db.vector_search_beans(
-        embedding=page.query_embedding, 
-        similarity_score=(1 - page.query_distance) if page.query_distance else config.filters.page.default_accuracy, 
-        filter=filter, sort_by=NEWEST, 
-        skip=start, limit=limit, project=BEAN_HEADER_FIELDS
-    )
-    return db.query_beans(filter=filter, sort_by=NEWEST, skip=start, limit=limit, project=BEAN_HEADER_FIELDS)   
+  
 
 # @cached(max_size=CACHE_SIZE, ttl=HALF_HOUR)
 def get_beans_for_custom_page(kind: str, tags: str|list[str]|list[list[str]], sources: str|list[str], last_ndays: int, sort_by, start: int, limit: int):

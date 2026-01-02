@@ -1,7 +1,7 @@
 [filters]
 [filters.page]
 default_accuracy = 0.75
-default_limit = 20
+default_limit = 16
 
 [app]
 name = "Espresso API"
