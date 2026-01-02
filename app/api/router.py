@@ -9,7 +9,14 @@ from pybeansack.models import *
 from app.shared.utils import *
 from app.shared.consts import *
 
-from icecream import ic
+CORE_BEAN_FIELDS = [
+    K_URL, K_KIND,
+    K_TITLE, K_SUMMARY,
+    K_AUTHOR, K_SOURCE, K_IMAGEURL, K_CREATED, 
+    K_CATEGORIES, K_SENTIMENTS, K_REGIONS, K_ENTITIES
+]
+
+CORE_PUBLISHER_FIELDS = [K_ID, K_BASE_URL, K_SITE_NAME, K_DESCRIPTION, K_FAVICON]
 
 ### QUERY PARAMETER DEFINITIONS ###
 Q = Query(
@@ -61,7 +68,7 @@ AUTHORS = Query(
     default=None, 
     description="One or more authors to filter beans."
 )
-PUBLISHED_AFTER = Query(
+PUBLISHED_SINCE = Query(
     default=None, 
     description="Only return beans published on or after this datetime."
 )
@@ -120,7 +127,7 @@ async def get_regions(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
 
 @api.get(
     "/articles/latest", 
-    response_model=list[AggregatedBean]|None,
+    response_model=list[Bean]|None,
     response_model_by_alias=True,
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
@@ -134,8 +141,8 @@ async def get_beans(
     entities: list[str] = ENTITIES,
     regions: list[str] = REGIONS,
     sources: list[str] = SOURCES,
-    published_since: datetime = PUBLISHED_AFTER,
-    with_content: bool = WITH_CONTENT,
+    published_since: datetime = PUBLISHED_SINCE,
+    # TODO: with_content: bool = WITH_CONTENT,
     offset: int = OFFSET,
     limit: int = LIMIT
 ) -> list[Bean]:    
@@ -149,8 +156,12 @@ async def get_beans(
         embedding=embed_query(q) if q else None,
         distance=1-acc if q else 0,
         limit=limit,
-        offset=offset
+        offset=offset,
+        # TODO: when with_content is True add condition and extend project
+        columns=CORE_BEAN_FIELDS
     )
+
+# TODO: add routes for /trending and /related
 
 # @api.get(
 #     "/related", 
@@ -186,6 +197,7 @@ async def get_beans(
     description="Get a list of all unique source ids available in the beansack."
 )
 async def get_publishers(sources: list[str] = SOURCES, offset: int = OFFSET, limit: int = LIMIT):
+    # TODO: add columns=CORE_PUBLISHER_FIELDS
     if sources: return db.query_publishers(sources=sources, limit=limit, offset=offset)
     else: return db.distinct_publishers(limit=limit, offset=offset)
 
