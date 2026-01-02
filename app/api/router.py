@@ -186,8 +186,8 @@ async def get_beans(
     description="Get a list of all unique source ids available in the beansack."
 )
 async def get_publishers(sources: list[str] = SOURCES, offset: int = OFFSET, limit: int = LIMIT):
-    if sources: return ic(db.query_publishers(sources=sources, limit=limit, offset=offset))
-    else: return ic(db.distinct_publishers(limit=limit, offset=offset))
+    if sources: return db.query_publishers(sources=sources, limit=limit, offset=offset)
+    else: return db.distinct_publishers(limit=limit, offset=offset)
 
 def run():
     uvicorn.run(api, host="0.0.0.0", port=8080)
