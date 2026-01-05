@@ -1,25 +1,26 @@
-FROM python:3.12-slim
+FROM python:3.12 AS builder
 
 RUN apt update && apt upgrade -y
-RUN apt install -y \
-    cmake \
-    make \
-    g++ \
-    build-essential \
-    wget \
-    git
+
+WORKDIR /build
+
+COPY requirements-api.txt requirements.txt
+COPY pybeansack/requirements.txt pybeansack-requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt -t /python-deps
+RUN pip install --no-cache-dir -r pybeansack-requirements.txt -t /python-deps
+
+FROM python:3.12-slim
 
 WORKDIR /espresso
 
+COPY --from=builder /python-deps /usr/local/lib/python3.12/site-packages/
 COPY . .
-RUN rm -r app/connectors
-RUN rm -r app/web
-RUN pip install --no-cache-dir -r pybeansack/requirements.txt
-RUN pip install --no-cache-dir -r requirements-api.txt
+RUN rm -r app/web app/slack
 
-ENV EMBEDDER_PATH=llamacpp:///espresso/.models/gist-small-embeddingv-0-q8.gguf
-ENV OTEL_SERVICE_NAME=ESPRESSO-API
-ENV MODE=api
+ENV SENTENCE_TRANSFORMERS_HOME=.models
+ENV EMBEDDER_MODEL=avsolatorio/GIST-small-Embedding-v0
+ENV EMBEDDER_CTX=512
 
 EXPOSE 8080
-CMD ["python3", "run.py"]
+CMD ["fastapi", "run", "app/apirouter.py", "--port", "8080", "--host", "0.0.0.0"]

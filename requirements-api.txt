@@ -1,14 +1,9 @@
 torch --index-url https://download.pytorch.org/whl/cpu
 sentence-transformers
-onnxruntime
-optimum[onnx]
 fastapi[standard]
 fastmcp
-slack-bolt
 retry
-humanize
 memoization
-azure-monitor-opentelemetry
 tomli
 icecream
 python-dotenv
