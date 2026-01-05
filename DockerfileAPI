@@ -1,22 +1,11 @@
-FROM python:3.12 AS builder
-
-RUN apt update && apt upgrade -y
-
-WORKDIR /build
-
-COPY requirements-api.txt requirements.txt
-COPY pybeansack/requirements.txt pybeansack-requirements.txt
-
-RUN pip install --no-cache-dir -r requirements.txt -t /python-deps
-RUN pip install --no-cache-dir -r pybeansack-requirements.txt -t /python-deps
-
 FROM python:3.12-slim
 
 WORKDIR /espresso
 
-COPY --from=builder /python-deps /usr/local/lib/python3.12/site-packages/
 COPY . .
 RUN rm -r app/web app/slack
+RUN pip install -r requirements-api.txt
+RUN pip install -r pybeansack/requirements.txt
 
 ENV SENTENCE_TRANSFORMERS_HOME=.models
 ENV EMBEDDER_MODEL=avsolatorio/GIST-small-Embedding-v0
