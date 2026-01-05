@@ -1,27 +1,28 @@
-app = "espresso-app"
-primary_region = "iad"
+# fly.toml app configuration file generated for api-espresso on 2026-01-05T15:56:55-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-[http_service]
-auto_start_machines = true
-auto_stop_machines = true
-force_https = true
-internal_port = 8080
-min_machines_running = 0
-processes = [ "app" ]
-[http_service.http_options]
-idle_timeout = 600
-
-[[vm]]
-size = "shared-cpu-1x"
-memory = "1gb"
+app = 'api-espresso'
+primary_region = 'lax'
 
 [build]
-dockerfile = "Dockerfile"
-ignorefile = ".dockerignore"
+  dockerfile = 'DockerfileAPI'
+  ignorefile = '.dockerignore'
 
-[env]
-APP_NAME = "Beans"
-OTEL_SERVICE_NAME = "ESPRESSO-WEB"
-BASE_URL = "https://espresso.cafecito.tech"
-DB_NAME = "espresso"
-MODE = "maintenance"
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [http_service.http_options]
+    idle_timeout = 600
+
+[[vm]]
+  size = 'shared-cpu-2x'
+  memory = '1gb'
+  cpus = 2
+  memory_mb = 1024
