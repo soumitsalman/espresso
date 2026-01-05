@@ -12,8 +12,8 @@ if __name__ in {"__main__", "__mp_main__"}:
         maintenance.run()
     elif mode == "api":
         initialize_app("./factory/api.toml")
-        from app.api import router
-        router.run()
+        from app.api import apirouter
+        apirouter.run()
     elif mode == "mcp":
         initialize_app("./factory/mcp.toml")
         from app.api import mcprouter
@@ -21,8 +21,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     elif mode == "web":
         initialize_app("./factory/web.toml")
         from app.web import router
-        router.run()  
-    # else:
-    #     from app.web import vanilla_router
-    #     vanilla_router.run()
+        apirouter.run()  
+    else:
+        raise ValueError(f"Unknown MODE: {mode}")
 

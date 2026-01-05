@@ -2,8 +2,8 @@ import logging
 from icecream import ic
 from pydantic import BaseModel
 from typing import Optional
-from app.pybeansack.models import Bean, Page, User
-from app.shared.env import *
+from pybeansack.models import Bean, Page, User
+
 
 # this is the user navigation and access context that also arbitrates RBAC
 # TODO: move this to a different file

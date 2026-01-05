@@ -1,13 +1,24 @@
+from contextlib import asynccontextmanager
 import logging
-import uvicorn
-from fastapi import FastAPI, Path, Query
+from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from typing import Literal
+from dotenv import load_dotenv
 
 from pybeansack.models import *
-from app.shared.utils import *
+from app.shared import AppContext
 from app.shared.consts import *
+
+### App Info ###
+NAME = "Espresso API"
+DESCRIPTION = "API for Espresso (Alpha)"
+VERSION = "0.0.1"
+FAVICON = "https://cafecito-assets.sfo3.cdn.digitaloceanspaces.com/espresso-favicon.ico"
+
+### DB QUERY CONSTANTS ###
+DEFAULT_ACCURACY = 0.75
+DEFAULT_LIMIT = 16
 
 CORE_BEAN_FIELDS = [
     K_URL, K_KIND,
@@ -15,8 +26,7 @@ CORE_BEAN_FIELDS = [
     K_AUTHOR, K_SOURCE, K_IMAGEURL, K_CREATED, 
     K_CATEGORIES, K_SENTIMENTS, K_REGIONS, K_ENTITIES
 ]
-
-CORE_PUBLISHER_FIELDS = [K_ID, K_BASE_URL, K_SITE_NAME, K_DESCRIPTION, K_FAVICON]
+CORE_PUBLISHER_FIELDS = [K_SOURCE, K_BASE_URL, K_SITE_NAME, K_DESCRIPTION, K_FAVICON]
 
 ### QUERY PARAMETER DEFINITIONS ###
 Q = Query(
@@ -30,7 +40,7 @@ SEARCH_TYPE = Query(
     description="Indicate if the search should be a semantic (vector) search or a text keyword (bm25) search."
 )
 ACCURACY = Query(
-    default=config.filters.page.default_accuracy, 
+    default=DEFAULT_ACCURACY, 
     ge=0, le=1,
     description="Minimum cosine similarity score (only applicable to vector search)."
 )
@@ -41,7 +51,7 @@ URL = Query(
 )
 KIND = Query(
     default=None, 
-    description="Type of bean to query: 'news', 'blogs', or keep it unspecified for both."
+    description="Type of bean to query: 'news', 'blog', or keep it unspecified for both."
 )
 CATEGORIES = Query(
     max_length=MAX_LIMIT, 
@@ -88,47 +98,63 @@ OFFSET = Query(
 LIMIT = Query(
     ge=MIN_LIMIT, 
     le=MAX_LIMIT, 
-    default=config.filters.page.default_limit, 
+    default=DEFAULT_LIMIT, 
     description="Maximum number of items to return."
 )
 
+db_context: AppContext = None
+
 ### ROUTER AND ROUTE DEFINITIONS ###
+@asynccontextmanager
+async def lifespan(app: FastAPI):    
+    load_dotenv()
+    global db_context
+    db_context = AppContext(
+        db_kwargs={
+            "db_type": os.getenv("DB_TYPE"), 
+            "pg_connection_string": os.getenv("PG_CONNECTION_STRING")
+        },
+        embedder_kwargs={
+            "model_name": os.getenv('EMBEDDER_MODEL'), 
+            "ctx_len": int(os.getenv('EMBEDDER_CTX', 512))
+        }
+    )    
+    yield    
 
-api = FastAPI(title=config.app.name, version="0.0.1", description=config.app.description)
-api.mount("/docs", StaticFiles(directory="docs"), "docs")
+    db_context.close()
 
-@api.get("/favicon.ico")
+app = FastAPI(title=NAME, version=VERSION, description=DESCRIPTION, lifespan=lifespan)
+app.mount("/docs", StaticFiles(directory="app/assets/docs"), "docs")
+
+@app.get("/favicon.ico")
 async def get_favicon():
-    return RedirectResponse(FAVICON_URL)
+    return RedirectResponse(FAVICON)
 
-@api.get(
+@app.get(
     "/categories", 
     response_model=list[str]|None,
     description="Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."
 )
 async def get_categories(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
-    return db.distinct_categories(limit=limit, offset=offset)
+    return db_context.db.distinct_categories(limit=limit, offset=offset)
 
-@api.get(
+@app.get(
     "/entities", 
     response_model=list[str]|None,
     description="Get a list of all unique named entities (people, organizations, products) available in the beansack."
 )
 async def get_entities(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
-    return db.distinct_entities(limit=limit, offset=offset)
+    return db_context.db.distinct_entities(limit=limit, offset=offset)
 
-@api.get(
+@app.get(
     "/regions", 
     response_model=list[str]|None,
     description="Get a list of all unique geographic regions available in beansack."
 )
 async def get_regions(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
-    return db.distinct_regions(limit=limit, offset=offset)
-
-@api.get(
+    return db_context.db.distinct_regions(limit=limit, offset=offset)
+@app.get(
     "/articles/latest", 
-    response_model=list[Bean]|None,
-    response_model_by_alias=True,
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
     description="Get a list of new beans (news or blogs) filtered by the provided parameters. The result is sorted by newest first."
@@ -145,15 +171,15 @@ async def get_beans(
     # TODO: with_content: bool = WITH_CONTENT,
     offset: int = OFFSET,
     limit: int = LIMIT
-) -> list[Bean]:    
-    return db.query_latest_beans(
+) -> Optional[list[Bean]]:    
+    return db_context.db.query_latest_beans(
         kind=kind,
         created=published_since,
         categories=categories,
         regions=regions,
         entities=entities,
         sources=sources,
-        embedding=embed_query(q) if q else None,
+        embedding=db_context.embed_query(q) if q else None,
         distance=1-acc if q else 0,
         limit=limit,
         offset=offset,
@@ -190,17 +216,25 @@ async def get_beans(
 #     project = create_projection(with_content) 
 #     return db.query_related_beans(url, filter=filter, sort_by=NEWEST, limit=limit, project = project)
 
-@api.get(
+@app.get(
     "/publishers", 
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
     description="Get a list of all unique source ids available in the beansack."
 )
-async def get_publishers(sources: list[str] = SOURCES, offset: int = OFFSET, limit: int = LIMIT):
-    # TODO: add columns=CORE_PUBLISHER_FIELDS
-    if sources: return db.query_publishers(sources=sources, limit=limit, offset=offset)
-    else: return db.distinct_publishers(limit=limit, offset=offset)
+async def get_publishers(
+    sources: list[str] = Query(..., max_length=MAX_LIMIT, description="One or more source ids to filter publishers."), 
+    offset: int = OFFSET, 
+    limit: int = LIMIT
+) -> Optional[list[Publisher]]:
+    return db_context.db.query_publishers(sources=sources, limit=limit, offset=offset, columns=CORE_PUBLISHER_FIELDS)
 
-def run():
-    uvicorn.run(api, host="0.0.0.0", port=8080)
+# BUG: the offset and limit is not working as expected
+@app.get(
+    "/publishers/sources", 
+    description="Get a list of unique source ids available in the beansack."
+)
+async def get_publishers(offset: int = OFFSET, limit: int = LIMIT) -> Optional[list[str]]:
+    return db_context.db.distinct_publishers(limit=limit, offset=offset)
+
 

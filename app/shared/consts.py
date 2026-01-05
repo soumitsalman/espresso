@@ -1,5 +1,3 @@
-FAVICON_URL="https://cafecito-assets.sfo3.cdn.digitaloceanspaces.com/espresso-favicon.ico"
-
 ### Time Values ###
 HALF_HOUR = 1800
 ONE_HOUR = 3600
@@ -12,6 +10,8 @@ MIN_WINDOW = 1
 MAX_WINDOW = 30
 MIN_LIMIT = 1
 MAX_LIMIT = 100
+
+DEFAULT_ACCURACY = 0.75
 
 ### Oauth related constants ###
 GOOGLE_SERVER_METADATA_URL = 'https://accounts.google.com/.well-known/openid-configuration'
