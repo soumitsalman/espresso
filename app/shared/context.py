@@ -1,30 +1,36 @@
 import os
 import tomli
+import numpy as np
 from types import SimpleNamespace
-from sentence_transformers import SentenceTransformer
+from llama_cpp import Llama
 from pybeansack import Beansack, create_client
+from icecream import ic
+
+class Embedder:
+    model = None
+    lock = None
+
+    def __init__(self, model_path: str, ctx_len: int): 
+        import threading
+        self.lock = threading.Lock()
+        self.model = Llama(model_path=model_path, n_ctx=ctx_len, embedding=True, verbose=False)
+
+    def __call__(self, text: str):
+        with self.lock:
+            vec = self.model.embed(text, truncate=True, return_count=False)
+        return vec
 
 class AppContext:  
     db: Beansack = None
-    embedder: SentenceTransformer = None
+    embedder: Embedder = None
 
     def __init__(self, db_kwargs: dict, embedder_kwargs: dict = None, additional_settings_file: str = None):               
         self.db = create_client(**db_kwargs)
-        if embedder_kwargs: self.embedder = SentenceTransformer(
-            embedder_kwargs["model_name"], 
-            tokenizer_kwargs={
-                "truncation": True,
-                "max_length": embedder_kwargs["ctx_len"],
-                "padding": True
-            }
-        )
+        if embedder_kwargs: self.embedder = Embedder(model_path=embedder_kwargs["model_name"], ctx_len=embedder_kwargs["ctx_len"]) 
         if additional_settings_file: self.settings = load_settings(additional_settings_file)
 
-    def embed_query(self, query: str):
-        import torch
-        with torch.inference_mode(), torch.no_grad():
-            vec = self.embedder.encode_query(query, convert_to_numpy=True).tolist()
-        return vec
+    def embed_query(self, query: str):        
+        return self.embedder(query)
 
     def close(self):
         if self.db: self.db.close()  
