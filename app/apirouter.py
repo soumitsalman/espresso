@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
     db_context.close()
 
 app = FastAPI(title=NAME, version=VERSION, description=DESCRIPTION, lifespan=lifespan)
-app.mount("/docs", StaticFiles(directory="app/assets/docs"), "docs")
+# app.mount("/docs", StaticFiles(directory="app/assets/docs"), "docs")
 
 @app.get("/favicon.ico")
 async def get_favicon():
