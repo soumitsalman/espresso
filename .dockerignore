@@ -4,5 +4,4 @@
 .venv
 .deployment
 .nicegui
-.models
 __pycache__

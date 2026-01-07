@@ -1,8 +1,7 @@
-llama-cpp-python
+sentence-transformers
 fastapi[standard]
 fastmcp
 retry
 memoization
 tomli
-icecream
 python-dotenv
