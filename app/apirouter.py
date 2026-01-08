@@ -17,7 +17,7 @@ NAME = "Espresso API"
 DESCRIPTION = "API for Espresso (Alpha)"
 VERSION = "0.0.1"
 # FAVICON = "https://cafecito-assets.t3.storage.dev/images/espresso-api.png"
-FAVICON = "app/assets/espresso-api.png"
+FAVICON = "app/assets/images/espresso-api.png"
 
 ### DB QUERY CONSTANTS ###
 DEFAULT_ACCURACY = 0.75
@@ -145,7 +145,7 @@ async def health_check():
 
 @app.get("/favicon.ico", description="Retrieves the favicon for the API.")
 async def get_favicon():
-    return FileResponse(FAVICON)
+    return FileResponse(FAVICON, media_type="image/png")
 
 @app.get(
     "/categories", 
