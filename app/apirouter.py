@@ -248,7 +248,6 @@ async def get_publishers(
 ) -> Optional[list[Publisher]]:
     return db_context.db.query_publishers(sources=sources, limit=limit, offset=offset, columns=CORE_PUBLISHER_FIELDS)
 
-# BUG: the offset and limit is not working as expected
 @app.get(
     "/publishers/sources", 
     dependencies=[api_key_dependency],
