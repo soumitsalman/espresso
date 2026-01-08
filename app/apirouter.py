@@ -16,7 +16,7 @@ load_dotenv()
 NAME = "Espresso API"
 DESCRIPTION = "API for Espresso (Alpha)"
 VERSION = "0.0.1"
-FAVICON = "https://cafecito-assets.sfo3.cdn.digitaloceanspaces.com/espresso-favicon.ico"
+FAVICON = "https://cafecito-assets.t3.storage.dev/images/espresso-api.png"
 
 ### DB QUERY CONSTANTS ###
 DEFAULT_ACCURACY = 0.75
