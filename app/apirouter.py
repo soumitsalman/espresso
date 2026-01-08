@@ -1,14 +1,16 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Query
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Query, HTTPException, Header, Depends
+from fastapi.responses import RedirectResponse, FileResponse
 from typing import Literal
 from dotenv import load_dotenv
+import os
 
 from pybeansack.models import *
 from app.shared import AppContext
 from app.shared.consts import *
+
+load_dotenv()
 
 ### App Info ###
 NAME = "Espresso API"
@@ -106,8 +108,7 @@ db_context: AppContext = None
 
 ### ROUTER AND ROUTE DEFINITIONS ###
 @asynccontextmanager
-async def lifespan(app: FastAPI):    
-    load_dotenv()
+async def lifespan(app: FastAPI):
     global db_context
     db_context = AppContext(
         db_kwargs={
@@ -123,43 +124,60 @@ async def lifespan(app: FastAPI):
 
     db_context.close()
 
-app = FastAPI(title=NAME, version=VERSION, description=DESCRIPTION, lifespan=lifespan)
-# app.mount("/docs", StaticFiles(directory="app/assets/docs"), "docs")
+def verify_api_key(x_api_key: str = Header(..., alias=os.getenv("API_KEY_HEADER","X-API-KEY"))):
+    expected_key = os.getenv("API_KEY")
+    if not expected_key or x_api_key != expected_key:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return x_api_key
 
-@app.get("/favicon.ico")
+api_key_dependency = Depends(verify_api_key)
+
+app = FastAPI(title=NAME, version=VERSION, description=DESCRIPTION, lifespan=lifespan)
+
+# @app.get("/")
+# async def root():
+#     return FileResponse("app/assets/index.html")
+
+@app.get("/health", description="Performs a health check on the API service.")
+async def health_check():
+    return {"status": "alive"}
+
+@app.get("/favicon.ico", description="Retrieves the favicon for the API.")
 async def get_favicon():
     return RedirectResponse(FAVICON)
 
 @app.get(
     "/categories", 
-    response_model=list[str]|None,
-    description="Get a list of all unique categories (e.g. AI, Cybersecurity, Politics, Software Engineering) available in the beansack."
+    dependencies=[api_key_dependency],
+    description="Retrieves a list of unique content categories from the articles, such as AI, Cybersecurity, Politics, and Software Engineering."
 )
 async def get_categories(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_categories(limit=limit, offset=offset)
 
 @app.get(
     "/entities", 
-    response_model=list[str]|None,
-    description="Get a list of all unique named entities (people, organizations, products) available in the beansack."
+    dependencies=[api_key_dependency],
+    description="Retrieves a list of unique named entities (people, organizations, products) mentioned in the articles."
 )
 async def get_entities(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_entities(limit=limit, offset=offset)
 
 @app.get(
     "/regions", 
-    response_model=list[str]|None,
-    description="Get a list of all unique geographic regions available in beansack."
+    dependencies=[api_key_dependency],
+    description="Retrieves a list of unique geographic regions mentioned in the articles."
 )
 async def get_regions(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_regions(limit=limit, offset=offset)
+
 @app.get(
     "/articles/latest", 
+    dependencies=[Depends(verify_api_key)],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    description="Get a list of new beans (news or blogs) filtered by the provided parameters. The result is sorted by newest first."
+    description="Searches for the latest articles (news or blog posts) sorted by publication date in descending order (newest first)."
 )
-async def get_beans(
+async def get_latest_articles(
     q: str = Q,
     acc: float = ACCURACY,
     kind: Literal[NEWS, BLOG] = KIND,
@@ -218,9 +236,10 @@ async def get_beans(
 
 @app.get(
     "/publishers", 
+    dependencies=[api_key_dependency],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    description="Get a list of all unique source ids available in the beansack."
+    description="Retrieves publisher metadata filtered by one or more publisher IDs."
 )
 async def get_publishers(
     sources: list[str] = Query(..., max_length=MAX_LIMIT, description="One or more source ids to filter publishers."), 
@@ -232,7 +251,8 @@ async def get_publishers(
 # BUG: the offset and limit is not working as expected
 @app.get(
     "/publishers/sources", 
-    description="Get a list of unique source ids available in the beansack."
+    dependencies=[api_key_dependency],
+    description="Retrieves a list of unique publisher IDs from which the articles are sourced."
 )
 async def get_publishers(offset: int = OFFSET, limit: int = LIMIT) -> Optional[list[str]]:
     return db_context.db.distinct_publishers(limit=limit, offset=offset)
