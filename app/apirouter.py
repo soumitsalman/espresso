@@ -13,10 +13,9 @@ from app.shared.consts import *
 load_dotenv()
 
 ### App Info ###
-NAME = "Espresso API"
-DESCRIPTION = "API for Espresso (Alpha)"
+NAME = "Espresso News API"
+DESCRIPTION = "Espresso News API is an intelligent news aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery."
 VERSION = "0.0.1"
-# FAVICON = "https://cafecito-assets.t3.storage.dev/images/espresso-api.png"
 FAVICON = "app/assets/images/espresso-api.png"
 
 ### DB QUERY CONSTANTS ###

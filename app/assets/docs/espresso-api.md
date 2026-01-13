@@ -1,6 +1,6 @@
-# Espresso API
+# Espresso News API & MCP
 
-Espresso API serves as the robust backend engine for Project Cafecito's Espresso suite, delivering AI-curated news and blog content aggregated from diverse RSS feeds. Designed for developers, it enables seamless integration of intelligent content discovery into applications, dashboards, or platforms.
+Espresso News API & MCP serves as the robust backend engine for Project Cafecito's Espresso product suite, delivering AI-curated news and blog content aggregated from diverse RSS feeds. Designed for developers, it enables seamless integration of intelligent content discovery into applications, dashboards, or platforms.
 
 ## Key Features
 
