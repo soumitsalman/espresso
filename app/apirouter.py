@@ -114,9 +114,9 @@ async def lifespan(app: FastAPI):
     global db_context
     
     # Load API keys configuration
-    allowed_headers = os.getenv("ALLOWED_API_KEY_HEADERS", "").split(",")
-    allowed_headers = [h.strip() for h in allowed_headers if h.strip()]
-    api_keys = {header: os.getenv(header) for header in allowed_headers if os.getenv(header)}
+    api_keys = os.getenv("API_KEYS", "").split(";")
+    api_keys = [kv.strip().split("=", maxsplit=1) for kv in api_keys if kv.strip()]
+    api_keys = {kv[0].strip(): kv[1].strip() for kv in api_keys}
     
     db_context = AppContext(
         db_kwargs={
