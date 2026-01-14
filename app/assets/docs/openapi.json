@@ -1,0 +1,972 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Espresso News",
+        "description": "Espresso News API is an intelligent news aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery.",
+        "version": "0.0.2"
+    },
+    "paths": {
+        "/health": {
+            "get": {
+                "summary": "Health Check",
+                "description": "Performs a health check on the API service.",
+                "operationId": "health_check_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/favicon.ico": {
+            "get": {
+                "summary": "Get Favicon",
+                "description": "Retrieves the favicon for the API.",
+                "operationId": "get_favicon_favicon_ico_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/categories": {
+            "get": {
+                "summary": "Get Categories",
+                "description": "Retrieves a list of unique content categories from the articles, such as AI, Cybersecurity, Politics, and Software Engineering.",
+                "operationId": "get_categories_categories_get",
+                "parameters": [
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "title": "Response Get Categories Categories Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/entities": {
+            "get": {
+                "summary": "Get Entities",
+                "description": "Retrieves a list of unique named entities (people, organizations, products) mentioned in the articles.",
+                "operationId": "get_entities_entities_get",
+                "parameters": [
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "title": "Response Get Entities Entities Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/regions": {
+            "get": {
+                "summary": "Get Regions",
+                "description": "Retrieves a list of unique geographic regions mentioned in the articles.",
+                "operationId": "get_regions_regions_get",
+                "parameters": [
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "title": "Response Get Regions Regions Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/articles/latest": {
+            "get": {
+                "summary": "Get Latest Articles",
+                "description": "Searches for the latest articles (news or blog posts) sorted by publication date in descending order (newest first).",
+                "operationId": "get_latest_articles_articles_latest_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 512,
+                            "description": "The search query string. Minimum length is 3 characters.",
+                            "title": "Q"
+                        },
+                        "description": "The search query string. Minimum length is 3 characters."
+                    },
+                    {
+                        "name": "acc",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "number",
+                            "maximum": 1,
+                            "minimum": 0,
+                            "description": "Minimum cosine similarity score (only applicable to vector search).",
+                            "default": 0.75,
+                            "title": "Acc"
+                        },
+                        "description": "Minimum cosine similarity score (only applicable to vector search)."
+                    },
+                    {
+                        "name": "kind",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "news",
+                                "blog"
+                            ],
+                            "type": "string",
+                            "description": "Type of article to query: 'news', 'blog', or keep it unspecified for both.",
+                            "title": "Kind"
+                        },
+                        "description": "Type of article to query: 'news', 'blog', or keep it unspecified for both."
+                    },
+                    {
+                        "name": "categories",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 100,
+                            "description": "One or more categories (case sensitive) to filter articles.",
+                            "title": "Categories"
+                        },
+                        "description": "One or more categories (case sensitive) to filter articles."
+                    },
+                    {
+                        "name": "entities",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 100,
+                            "description": "One or more named entities (case sensitive) to filter articles.",
+                            "title": "Entities"
+                        },
+                        "description": "One or more named entities (case sensitive) to filter articles."
+                    },
+                    {
+                        "name": "regions",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 100,
+                            "description": "One or more regions (case sensitive) to filter articles.",
+                            "title": "Regions"
+                        },
+                        "description": "One or more regions (case sensitive) to filter articles."
+                    },
+                    {
+                        "name": "sources",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 100,
+                            "description": "One or more publisher ids (case sensitive) to filter articles.",
+                            "title": "Sources"
+                        },
+                        "description": "One or more publisher ids (case sensitive) to filter articles."
+                    },
+                    {
+                        "name": "published_since",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Only return articles published on or after this datetime.",
+                            "title": "Published Since"
+                        },
+                        "description": "Only return articles published on or after this datetime."
+                    },
+                    {
+                        "name": "with_content",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "description": "Include full text content of the articles. This applies ONLY to articles for which the full content is available.",
+                            "default": false,
+                            "title": "With Content"
+                        },
+                        "description": "Include full text content of the articles. This applies ONLY to articles for which the full content is available."
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Bean"
+                                            }
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "title": "Response Get Latest Articles Articles Latest Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/publishers": {
+            "get": {
+                "summary": "Get Publishers",
+                "description": "Retrieves publisher metadata filtered by one or more publisher IDs.",
+                "operationId": "get_publishers_publishers_get",
+                "parameters": [
+                    {
+                        "name": "sources",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "maxItems": 100,
+                            "description": "One or more source ids to filter publishers.",
+                            "title": "Sources"
+                        },
+                        "description": "One or more source ids to filter publishers."
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Publisher"
+                                            }
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "title": "Response Get Publishers Publishers Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/publishers/sources": {
+            "get": {
+                "summary": "Get Publishers",
+                "description": "Retrieves a list of unique publisher IDs from which the articles are sourced.",
+                "operationId": "get_publishers_publishers_sources_get",
+                "parameters": [
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Number of items to skip (for pagination).",
+                            "default": 0,
+                            "title": "Offset"
+                        },
+                        "description": "Number of items to skip (for pagination)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of items to return.",
+                            "default": 16,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of items to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "title": "Response Get Publishers Publishers Sources Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Bean": {
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "title": "Url",
+                        "description": "The URL of the article."
+                    },
+                    "kind": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Kind",
+                        "description": "The kind/type of the article, e.g., news, blog, oped, job, post."
+                    },
+                    "source": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Source",
+                        "description": "The source/publisher id of the article."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Title",
+                        "description": "The title of the article."
+                    },
+                    "title_length": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Title Length",
+                        "description": "The length of the title in words."
+                    },
+                    "summary": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Summary",
+                        "description": "A summary of the article."
+                    },
+                    "summary_length": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Summary Length",
+                        "description": "The length of the summary in words."
+                    },
+                    "content": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Content",
+                        "description": "The full content of the article."
+                    },
+                    "content_length": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Content Length",
+                        "description": "The length of the content in words."
+                    },
+                    "restricted_content": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Restricted Content",
+                        "description": "Indicates if the content is restricted."
+                    },
+                    "image_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Image Url",
+                        "description": "The URL of the article's image."
+                    },
+                    "author": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Author",
+                        "description": "The author of the article (if available)."
+                    },
+                    "created": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Created",
+                        "description": "The published date of the article."
+                    },
+                    "collected": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Collected",
+                        "description": "The date when the article was collected into the system."
+                    },
+                    "embedding": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "number"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Embedding",
+                        "description": "The embedding vector for the article."
+                    },
+                    "gist": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Gist",
+                        "description": "A gist or key points of the article."
+                    },
+                    "entities": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Entities",
+                        "description": "Named entities mentioned in the article."
+                    },
+                    "regions": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Regions",
+                        "description": "Geographic regions mentioned in the article."
+                    },
+                    "categories": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Categories",
+                        "description": "Categories associated with the article."
+                    },
+                    "sentiments": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sentiments",
+                        "description": "Sentiments expressed in the article."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "url"
+                ],
+                "title": "Bean",
+                "description": "An article such as a news or blog post."
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "Publisher": {
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Source",
+                        "description": "The domain name that matches the source field in Bean."
+                    },
+                    "base_url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Base Url",
+                        "description": "The base URL of the publisher."
+                    },
+                    "site_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Site Name",
+                        "description": "The name of the site."
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description",
+                        "description": "A description of the publisher."
+                    },
+                    "favicon": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Favicon",
+                        "description": "The URL of the publisher's favicon."
+                    },
+                    "rss_feed": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Rss Feed",
+                        "description": "The URL of the publisher's RSS feed."
+                    },
+                    "collected": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Collected",
+                        "description": "The date and time when the publisher information was collected."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "source",
+                    "base_url"
+                ],
+                "title": "Publisher",
+                "description": "The website, publisher or social media from which an article or chatter is sourced."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}

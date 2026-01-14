@@ -15,7 +15,7 @@ load_dotenv()
 ### App Info ###
 NAME = "Espresso News"
 DESCRIPTION = "Espresso News API is an intelligent news aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery."
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 FAVICON = "app/assets/images/espresso-api.png"
 
 ### DB QUERY CONSTANTS ###
@@ -51,44 +51,44 @@ ACCURACY = Query(
 URL = Query(
     ..., 
     min_length=10, 
-    description="The URL of the bean for which related beans are to be found. Minimum length is 10 characters."
+    description="The URL of the article for which related articles are to be found. Minimum length is 10 characters."
 )
 KIND = Query(
     default=None, 
-    description="Type of bean to query: 'news', 'blog', or keep it unspecified for both."
+    description="Type of article to query: 'news', 'blog', or keep it unspecified for both."
 )
 CATEGORIES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more categories to filter beans."
+    description="One or more categories (case sensitive) to filter articles."
 )
 ENTITIES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more named entities to filter beans."
+    description="One or more named entities (case sensitive) to filter articles."
 )
 REGIONS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more regions to filter beans."
+    description="One or more regions (case sensitive) to filter articles."
 )
 SOURCES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more source ids to filter beans."
+    description="One or more publisher ids (case sensitive) to filter articles."
 )
 AUTHORS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more authors to filter beans."
+    description="One or more authors (case sensitive) to filter articles."
 )
 PUBLISHED_SINCE = Query(
     default=None, 
-    description="Only return beans published on or after this datetime."
+    description="Only return articles published on or after this datetime."
 )
 WITH_CONTENT = Query(
     default=False, 
-    description="Whether to include only beans with content."
+    description="Include full text content of the articles. This applies ONLY to articles for which the full content is available."
 )
 GROUP_BY = Query(
     default=None, 
