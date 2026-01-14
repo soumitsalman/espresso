@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Query, HTTPException, Header, Depends
+from fastapi import FastAPI, Query, HTTPException, Header, Depends, Request
 from fastapi.responses import RedirectResponse, FileResponse
 from typing import Literal
 from dotenv import load_dotenv
@@ -13,7 +13,7 @@ from app.shared.consts import *
 load_dotenv()
 
 ### App Info ###
-NAME = "Espresso News API"
+NAME = "Espresso News"
 DESCRIPTION = "Espresso News API is an intelligent news aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery."
 VERSION = "0.0.1"
 FAVICON = "app/assets/images/espresso-api.png"
@@ -22,12 +22,14 @@ FAVICON = "app/assets/images/espresso-api.png"
 DEFAULT_ACCURACY = 0.75
 DEFAULT_LIMIT = 16
 
+UNRESTRICTED_CONTENT = ["restricted_content IS NULL", "content IS NOT NULL"]
 CORE_BEAN_FIELDS = [
     K_URL, K_KIND,
     K_TITLE, K_SUMMARY,
     K_AUTHOR, K_SOURCE, K_IMAGEURL, K_CREATED, 
     K_CATEGORIES, K_SENTIMENTS, K_REGIONS, K_ENTITIES
 ]
+EXTENDED_BEAN_FIELDS = CORE_BEAN_FIELDS + [K_CONTENT]
 CORE_PUBLISHER_FIELDS = [K_SOURCE, K_BASE_URL, K_SITE_NAME, K_DESCRIPTION, K_FAVICON]
 
 ### QUERY PARAMETER DEFINITIONS ###
@@ -110,6 +112,12 @@ db_context: AppContext = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_context
+    
+    # Load API keys configuration
+    allowed_headers = os.getenv("ALLOWED_API_KEY_HEADERS", "").split(",")
+    allowed_headers = [h.strip() for h in allowed_headers if h.strip()]
+    api_keys = {header: os.getenv(header) for header in allowed_headers if os.getenv(header)}
+    
     db_context = AppContext(
         db_kwargs={
             "db_type": os.getenv("DB_TYPE"), 
@@ -118,17 +126,24 @@ async def lifespan(app: FastAPI):
         embedder_kwargs={
             "model_name": os.getenv('EMBEDDER_MODEL'), 
             "ctx_len": int(os.getenv('EMBEDDER_CTX', 512))
-        }
+        },
+        api_keys=api_keys
     )    
     yield    
 
     db_context.close()
 
-def verify_api_key(x_api_key: str = Header(..., alias=os.getenv("API_KEY_HEADER","X-API-KEY"))):
-    expected_key = os.getenv("API_KEY")
-    if not expected_key or x_api_key != expected_key:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
-    return x_api_key
+def verify_api_key(request: Request):
+    # Check each allowed header in the request
+    for header, value in db_context.settings['api_keys'].items():
+        provided_value = request.headers.get(header)
+        
+        if not provided_value: continue
+        # Remove Bearer prefix if present
+        provided_value = provided_value.removeprefix("Bearer ").strip()
+        if provided_value == value: return provided_value
+    
+    raise HTTPException(status_code=401, detail="Invalid API Key")
 
 api_key_dependency = Depends(verify_api_key)
 
@@ -186,7 +201,7 @@ async def get_latest_articles(
     regions: list[str] = REGIONS,
     sources: list[str] = SOURCES,
     published_since: datetime = PUBLISHED_SINCE,
-    # TODO: with_content: bool = WITH_CONTENT,
+    with_content: bool = WITH_CONTENT,
     offset: int = OFFSET,
     limit: int = LIMIT
 ) -> Optional[list[Bean]]:    
@@ -199,10 +214,10 @@ async def get_latest_articles(
         sources=sources,
         embedding=db_context.embed_query(q) if q else None,
         distance=1-acc if q else 0,
+        conditions=UNRESTRICTED_CONTENT if with_content else None,
         limit=limit,
-        offset=offset,
-        # TODO: when with_content is True add condition and extend project
-        columns=CORE_BEAN_FIELDS
+        offset=offset,        
+        columns=EXTENDED_BEAN_FIELDS if with_content else CORE_BEAN_FIELDS
     )
 
 # TODO: add routes for /trending and /related
