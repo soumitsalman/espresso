@@ -79,18 +79,11 @@ Espresso News API is an intelligent news aggregation and search service that cur
     - `kind` (string, nullable): Article type (news, blog, oped, job, post)
     - `source` (string, nullable): Publisher/source ID
     - `title` (string, nullable): Article title
-    - `title_length` (integer, nullable): Title length in words
     - `summary` (string, nullable): Article summary
-    - `summary_length` (integer, nullable): Summary length in words
     - `content` (string, nullable): Full article content
-    - `content_length` (integer, nullable): Content length in words
-    - `restricted_content` (boolean, nullable): Whether content is restricted
     - `image_url` (string, nullable): Article image URL
     - `author` (string, nullable): Article author
     - `created` (datetime, nullable): Publication date
-    - `collected` (datetime, nullable): Date collected into system
-    - `embedding` (array[number], nullable): LLM-generated embedding vector for semantic search
-    - `gist` (string, nullable): Key points or gist of the article
     - `entities` (array[string], nullable): Named entities mentioned
     - `regions` (array[string], nullable): Geographic regions mentioned
     - `categories` (array[string], nullable): Associated categories
@@ -105,13 +98,11 @@ Espresso News API is an intelligent news aggregation and search service that cur
     - `limit` (integer, optional): Maximum number of items to return. Range: 1-100. Default: 16
   - **Response**: `200 OK` with array of Publisher objects or null
   - **Publisher Object Schema**:
-    - `source` (string, required): Domain name matching the source field in Bean
+    - `source` (string, required): Domain name (ID) matching the source field in Bean
     - `base_url` (string, required): Publisher's base URL
     - `site_name` (string, nullable): Name of the site
     - `description` (string, nullable): Publisher description
     - `favicon` (string, nullable): Favicon URL
-    - `rss_feed` (string, nullable): RSS feed URL
-    - `collected` (datetime, nullable): When publisher info was collected
 
 ### Publisher Sources
 - **GET /publishers/sources**

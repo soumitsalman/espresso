@@ -190,6 +190,7 @@ async def get_regions(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     dependencies=[Depends(verify_api_key)],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
+    response_model_exclude=[K_COLLECTED, K_RESTRICTED_CONTENT, "title_length", "summary_length", "content_length", K_EMBEDDING, K_GIST],
     description="Searches for the latest articles (news or blog posts) sorted by publication date in descending order (newest first)."
 )
 async def get_latest_articles(
@@ -254,6 +255,7 @@ async def get_latest_articles(
     dependencies=[api_key_dependency],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
+    response_model_exclude=[K_RSS_FEED, K_COLLECTED],
     description="Retrieves publisher metadata filtered by one or more publisher IDs."
 )
 async def get_publishers(

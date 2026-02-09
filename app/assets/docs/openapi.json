@@ -620,18 +620,6 @@
                         "title": "Title",
                         "description": "The title of the article."
                     },
-                    "title_length": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Title Length",
-                        "description": "The length of the title in words."
-                    },
                     "summary": {
                         "anyOf": [
                             {
@@ -644,18 +632,6 @@
                         "title": "Summary",
                         "description": "A summary of the article."
                     },
-                    "summary_length": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Summary Length",
-                        "description": "The length of the summary in words."
-                    },
                     "content": {
                         "anyOf": [
                             {
@@ -667,30 +643,6 @@
                         ],
                         "title": "Content",
                         "description": "The full content of the article."
-                    },
-                    "content_length": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Content Length",
-                        "description": "The length of the content in words."
-                    },
-                    "restricted_content": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Restricted Content",
-                        "description": "Indicates if the content is restricted."
                     },
                     "image_url": {
                         "anyOf": [
@@ -728,46 +680,6 @@
                         ],
                         "title": "Created",
                         "description": "The published date of the article."
-                    },
-                    "collected": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Collected",
-                        "description": "The date when the article was collected into the system."
-                    },
-                    "embedding": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Embedding",
-                        "description": "The embedding vector for the article."
-                    },
-                    "gist": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Gist",
-                        "description": "A gist or key points of the article."
                     },
                     "entities": {
                         "anyOf": [
@@ -899,31 +811,6 @@
                         ],
                         "title": "Favicon",
                         "description": "The URL of the publisher's favicon."
-                    },
-                    "rss_feed": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Rss Feed",
-                        "description": "The URL of the publisher's RSS feed."
-                    },
-                    "collected": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Collected",
-                        "description": "The date and time when the publisher information was collected."
                     }
                 },
                 "type": "object",
