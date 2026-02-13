@@ -114,9 +114,11 @@ async def lifespan(app: FastAPI):
     global db_context
     
     # Load API keys configuration
-    api_keys = os.getenv("API_KEYS", "").split(";")
-    api_keys = [kv.strip().split("=", maxsplit=1) for kv in api_keys if kv.strip()]
-    api_keys = {kv[0].strip(): kv[1].strip() for kv in api_keys}
+    api_keys = os.getenv("API_KEYS")
+    if api_keys:
+        api_keys = api_keys.split(";")
+        api_keys = [kv.strip().split("=", maxsplit=1) for kv in api_keys if kv.strip()]
+        api_keys = {kv[0].strip(): kv[1].strip() for kv in api_keys}
     
     db_context = AppContext(
         db_kwargs={
@@ -135,14 +137,9 @@ async def lifespan(app: FastAPI):
 
 def verify_api_key(request: Request):
     # Check each allowed header in the request
-    for header, value in db_context.settings['api_keys'].items():
-        provided_value = request.headers.get(header)
-        
-        if not provided_value: continue
-        # Remove Bearer prefix if present
-        provided_value = provided_value.removeprefix("Bearer ").strip()
-        if provided_value == value: return provided_value
-    
+    api_keys = db_context.settings.get('api_keys')
+    if not api_keys: return True # If no API keys are configured, allow all requests
+    if any(request.headers.get(header) == value for header, value in api_keys.items()): return True
     raise HTTPException(status_code=401, detail="Invalid API Key")
 
 api_key_dependency = Depends(verify_api_key)
