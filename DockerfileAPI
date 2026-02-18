@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r pybeansack/requirements.txt
 # ENV EMBEDDER_MODEL=.models/gist-small-embedding-v0-q8_0.gguf
 ENV EMBEDDER_MODEL=avsolatorio/GIST-small-Embedding-v0
 ENV EMBEDDER_CTX=512
-ENV SENTENCE_TRANSFORMERS_HOME=.models
+ENV HF_HOME=.models
 
 EXPOSE 8080
 CMD ["fastapi", "run", "app/apirouter.py", "--port", "8080", "--host", "0.0.0.0"]

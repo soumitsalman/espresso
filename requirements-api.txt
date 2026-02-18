@@ -1,4 +1,8 @@
-sentence-transformers
+celery[redis]
+onnxruntime
+optimum[onnxruntime]
+transformers
+numpy
 fastapi[standard]
 fastmcp
 retry

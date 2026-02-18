@@ -37,7 +37,7 @@ Q = Query(
     default=None, 
     min_length=3, 
     max_length=512,
-    description="The search query string. Minimum length is 3 characters."
+    description="The search query used for vector search. Minimum length is 3 characters."
 )
 SEARCH_TYPE = Query(
     default="vector", 
@@ -46,7 +46,7 @@ SEARCH_TYPE = Query(
 ACCURACY = Query(
     default=DEFAULT_ACCURACY, 
     ge=0, le=1,
-    description="Minimum cosine similarity score (only applicable to vector search)."
+    description="""Cosine similarity score for vector search. Includes articles with a cosine similarity score >= accuracy in search result. The higher the accuracy the stricter the filter, meaning less items will be returned. `accuracy=1` means only exactly identical articles, `accuracy=0` means all articles regardless of similarity will be returned."""
 )
 URL = Query(
     ..., 
@@ -60,35 +60,39 @@ KIND = Query(
 CATEGORIES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more categories (case sensitive) to filter articles."
+    description="Filters articles by one or more categories (case sensitive). Used for faster keyword search."
 )
 ENTITIES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more named entities (case sensitive) to filter articles."
+    description="Filters articles by one or more named entities (case sensitive). Used for faster keyword search."
 )
 REGIONS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more regions (case sensitive) to filter articles."
+    description="Filters articles by one or more regions (case sensitive). Used for faster keyword search."
 )
 SOURCES = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more publisher ids (case sensitive) to filter articles."
+    description="Filters articles by one or more publisher IDs (case sensitive)."
 )
 AUTHORS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="One or more authors (case sensitive) to filter articles."
+    description="Filters articles by one or more authors (case sensitive)."
 )
 PUBLISHED_SINCE = Query(
     default=None, 
-    description="Only return articles published on or after this datetime."
+    description="Filters articles that were published on or after this datetime."
+)
+TRENDING_SINCE = Query(
+    default=None, 
+    description="Filters articles that had social media engagement (comments, shares, likes) on or after this datetime."
 )
 WITH_CONTENT = Query(
     default=False, 
-    description="Include full text content of the articles. This applies ONLY to articles for which the full content is available."
+    description="""Includes full text content (plaintext/markdown) of the articles. This applies ONLY to articles where full content is available. By default (when `with_content=false`), ONLY `summary` is included instead of `content` for faster response."""
 )
 GROUP_BY = Query(
     default=None, 
@@ -150,45 +154,57 @@ app = FastAPI(title=NAME, version=VERSION, description=DESCRIPTION, lifespan=lif
 # async def root():
 #     return FileResponse("app/assets/index.html")
 
-@app.get("/health", description="Performs a health check on the API service.")
+@app.get(
+    "/health", 
+    summary="Health check", 
+    description="Performs a health check to see if the API service is running. Returns `{\"status\": \"alive\"}` if the service is operational."
+)
 async def health_check():
     return {"status": "alive"}
 
-@app.get("/favicon.ico", description="Retrieves the favicon for the API.")
+@app.get(
+    "/favicon.ico", 
+    summary="Get favicon", 
+    description="Retrieves the favicon for the API service."
+)
 async def get_favicon():
     return FileResponse(FAVICON, media_type="image/png")
 
 @app.get(
     "/categories", 
+    summary="List categories",
     dependencies=[api_key_dependency],
-    description="Retrieves a list of unique content categories from the articles, such as AI, Cybersecurity, Politics, and Software Engineering."
+    description="Retrieves a list of unique values of articles categories/topics, such as Artificial Intelligence, Cybersecurity, Politics, Software Engineering etc."
 )
 async def get_categories(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_categories(limit=limit, offset=offset)
 
 @app.get(
     "/entities", 
+    summary="List entities",
     dependencies=[api_key_dependency],
-    description="Retrieves a list of unique named entities (people, organizations, products) mentioned in the articles."
+    description="Retrieves a list of unique values of named entities (people, organizations, products) mentioned in the articles."
 )
 async def get_entities(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_entities(limit=limit, offset=offset)
 
 @app.get(
     "/regions", 
+    summary="List regions",
     dependencies=[api_key_dependency],
-    description="Retrieves a list of unique geographic regions mentioned in the articles."
+    description="Retrieves a list of unique values of geographic regions mentioned in the articles such as UK, US, Europe etc."
 )
 async def get_regions(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_regions(limit=limit, offset=offset)
 
 @app.get(
     "/articles/latest", 
+    summary="Search latest articles",
     dependencies=[Depends(verify_api_key)],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
     response_model_exclude=[K_COLLECTED, K_RESTRICTED_CONTENT, "title_length", "summary_length", "content_length", K_EMBEDDING, K_GIST],
-    description="Searches for the latest articles (news or blog posts) sorted by publication date in descending order (newest first)."
+    description="""Searches for the latest articles/news/blogs. For vector search (when `q` is provided), the results are sorted by relevance. Otherwise, they are sorted by publication date in descending order (newest first)."""
 )
 async def get_latest_articles(
     q: str = Q,
@@ -203,6 +219,8 @@ async def get_latest_articles(
     offset: int = OFFSET,
     limit: int = LIMIT
 ) -> Optional[list[Bean]]:    
+    embedding = db_context.embed_query(q) if q else None
+    distance = 1 - acc if q else 0
     return db_context.db.query_latest_beans(
         kind=kind,
         created=published_since,
@@ -210,15 +228,54 @@ async def get_latest_articles(
         regions=regions,
         entities=entities,
         sources=sources,
-        embedding=db_context.embed_query(q) if q else None,
-        distance=1-acc if q else 0,
+        embedding=embedding,
+        distance=distance,
         conditions=UNRESTRICTED_CONTENT if with_content else None,
         limit=limit,
         offset=offset,        
         columns=EXTENDED_BEAN_FIELDS if with_content else CORE_BEAN_FIELDS
     )
 
-# TODO: add routes for /trending and /related
+@app.get(
+    "/articles/trending", 
+    summary="Search trending articles",
+    dependencies=[Depends(verify_api_key)],
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    response_model_exclude=[K_COLLECTED, K_RESTRICTED_CONTENT, "title_length", "summary_length", "content_length", K_EMBEDDING, K_GIST],
+    description="""Searches for the trending articles/news/blogs. For vector search (when `q` is provided), the results are sorted by relevance. Otherwise, they are sorted by internal trend score (calculated from social media engagement: comments, likes, shares, last engagement etc.)."""
+)
+async def get_trending_articles(
+    q: str = Q,
+    acc: float = ACCURACY,
+    kind: Literal[NEWS, BLOG] = KIND,
+    categories: list[str] = CATEGORIES,
+    entities: list[str] = ENTITIES,
+    regions: list[str] = REGIONS,
+    sources: list[str] = SOURCES,
+    trending_since: datetime = TRENDING_SINCE,
+    with_content: bool = WITH_CONTENT,
+    offset: int = OFFSET,
+    limit: int = LIMIT
+) -> Optional[list[Bean]]:    
+    embedding = db_context.embed_query(q) if q else None
+    distance = 1 - acc if q else 0
+    return db_context.db.query_trending_beans(
+        kind=kind,
+        updated=trending_since,
+        categories=categories,
+        regions=regions,
+        entities=entities,
+        sources=sources,
+        embedding=embedding,
+        distance=distance,
+        conditions=UNRESTRICTED_CONTENT if with_content else None,
+        limit=limit,
+        offset=offset,        
+        columns=EXTENDED_BEAN_FIELDS if with_content else CORE_BEAN_FIELDS
+    )
+
+# TODO: add routes for /related
 
 # @api.get(
 #     "/related", 
@@ -249,6 +306,7 @@ async def get_latest_articles(
 
 @app.get(
     "/publishers", 
+    summary="Get publishers' metadata",
     dependencies=[api_key_dependency],
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
@@ -256,7 +314,7 @@ async def get_latest_articles(
     description="Retrieves publisher metadata filtered by one or more publisher IDs."
 )
 async def get_publishers(
-    sources: list[str] = Query(..., max_length=MAX_LIMIT, description="One or more source ids to filter publishers."), 
+    sources: list[str] = Query(..., max_length=MAX_LIMIT, description="List of publisher IDs to search by (case sensitive)."), 
     offset: int = OFFSET, 
     limit: int = LIMIT
 ) -> Optional[list[Publisher]]:
@@ -264,10 +322,10 @@ async def get_publishers(
 
 @app.get(
     "/publishers/sources", 
+    summary="List publisher IDs",
     dependencies=[api_key_dependency],
-    description="Retrieves a list of unique publisher IDs from which the articles are sourced."
+    description="Retrieves a list of unique values of publisher IDs from which the articles are sourced."
 )
 async def get_publishers(offset: int = OFFSET, limit: int = LIMIT) -> Optional[list[str]]:
     return db_context.db.distinct_publishers(limit=limit, offset=offset)
-
 
