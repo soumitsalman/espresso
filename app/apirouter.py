@@ -13,10 +13,10 @@ from app.shared.consts import *
 load_dotenv()
 
 ### App Info ###
-NAME = "Espresso News"
-DESCRIPTION = "Espresso News API is an intelligent news aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery."
-VERSION = "0.0.2"
-FAVICON = "app/assets/images/espresso-api.png"
+NAME = "Beans API & MCP"
+DESCRIPTION = "Beans is an intelligent news & blogs aggregation and search service that curates fresh content from RSS feeds using AI-powered natural language queries and filters. Access trending articles, publishers, categories, and entities with fast JSON responses, perfect for developers building news apps or integrating smart content discovery."
+VERSION = "0.1"
+FAVICON = "app/assets/images/beans.png"
 
 ### DB QUERY CONSTANTS ###
 DEFAULT_ACCURACY = 0.75
