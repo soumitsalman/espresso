@@ -44,7 +44,7 @@
         }
       }
     },
-    "/categories": {
+    "/tags/categories": {
       "get": {
         "summary": "List categories",
         "description": "Retrieves a list of unique values of articles categories/topics, such as Artificial Intelligence, Cybersecurity, Politics, Software Engineering etc.",
@@ -106,7 +106,7 @@
         }
       }
     },
-    "/entities": {
+    "/tags/entities": {
       "get": {
         "summary": "List entities",
         "description": "Retrieves a list of unique values of named entities (people, organizations, products) mentioned in the articles.",
@@ -168,7 +168,7 @@
         }
       }
     },
-    "/regions": {
+    "/tags/regions": {
       "get": {
         "summary": "List regions",
         "description": "Retrieves a list of unique values of geographic regions mentioned in the articles such as UK, US, Europe etc.",

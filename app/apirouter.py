@@ -178,7 +178,7 @@ async def get_favicon():
     return FileResponse(FAVICON, media_type="image/png")
 
 @app.get(
-    "/categories", 
+    "/tags/categories", 
     summary="List categories",
     dependencies=[api_key_dependency],
     description="Retrieves a list of unique values of articles categories/topics, such as Artificial Intelligence, Cybersecurity, Politics, Software Engineering etc."
@@ -187,7 +187,7 @@ async def get_categories(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_categories(limit=limit, offset=offset)
 
 @app.get(
-    "/entities", 
+    "/tags/entities", 
     summary="List entities",
     dependencies=[api_key_dependency],
     description="Retrieves a list of unique values of named entities (people, organizations, products) mentioned in the articles."
@@ -196,7 +196,7 @@ async def get_entities(offset: int = OFFSET, limit: int = LIMIT) -> list[str]:
     return db_context.db.distinct_entities(limit=limit, offset=offset)
 
 @app.get(
-    "/regions", 
+    "/tags/regions", 
     summary="List regions",
     dependencies=[api_key_dependency],
     description="Retrieves a list of unique values of geographic regions mentioned in the articles such as UK, US, Europe etc."
