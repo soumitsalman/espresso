@@ -22,6 +22,7 @@ FAVICON = "app/assets/images/beans.png"
 DEFAULT_ACCURACY = 0.75
 DEFAULT_LIMIT = 16
 
+PROCESSED_ITEMS = ["gist IS NOT NULL", "embedding IS NOT NULL"]
 UNRESTRICTED_CONTENT = ["restricted_content IS NULL", "content IS NOT NULL"]
 CORE_BEAN_FIELDS = [
     K_URL, K_KIND,
@@ -71,6 +72,12 @@ REGIONS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
     description="Filters articles by one or more regions (case sensitive). Used for faster keyword search."
+)
+TAGS = Query(
+    max_length=MAX_LIMIT, 
+    default=None, 
+    description="Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters.",
+    examples=["""["Artificial Intelligence", "UK", "saudi-arabia", "Elon-Musk", "#data-protection"]"""]
 )
 SOURCES = Query(
     max_length=MAX_LIMIT, 
@@ -210,27 +217,29 @@ async def get_latest_articles(
     q: str = Q,
     acc: float = ACCURACY,
     kind: Literal[NEWS, BLOG] = KIND,
-    categories: list[str] = CATEGORIES,
-    entities: list[str] = ENTITIES,
-    regions: list[str] = REGIONS,
+    # categories: list[str] = CATEGORIES,
+    # entities: list[str] = ENTITIES,
+    # regions: list[str] = REGIONS,
+    tags: list[str] = TAGS,
     sources: list[str] = SOURCES,
     published_since: datetime = PUBLISHED_SINCE,
     with_content: bool = WITH_CONTENT,
+    limit: int = LIMIT,
     offset: int = OFFSET,
-    limit: int = LIMIT
 ) -> Optional[list[Bean]]:    
     embedding = db_context.embed_query(q) if q else None
     distance = 1 - acc if q else 0
     return db_context.db.query_latest_beans(
         kind=kind,
         created=published_since,
-        categories=categories,
-        regions=regions,
-        entities=entities,
+        # categories=categories,
+        # regions=regions,
+        # entities=entities,
+        tags=tags,
         sources=sources,
         embedding=embedding,
         distance=distance,
-        conditions=UNRESTRICTED_CONTENT if with_content else None,
+        conditions=UNRESTRICTED_CONTENT+PROCESSED_ITEMS if with_content else PROCESSED_ITEMS,
         limit=limit,
         offset=offset,        
         columns=EXTENDED_BEAN_FIELDS if with_content else CORE_BEAN_FIELDS
@@ -249,27 +258,29 @@ async def get_trending_articles(
     q: str = Q,
     acc: float = ACCURACY,
     kind: Literal[NEWS, BLOG] = KIND,
-    categories: list[str] = CATEGORIES,
-    entities: list[str] = ENTITIES,
-    regions: list[str] = REGIONS,
+    # categories: list[str] = CATEGORIES,
+    # entities: list[str] = ENTITIES,
+    # regions: list[str] = REGIONS,
+    tags: list[str] = TAGS,
     sources: list[str] = SOURCES,
     trending_since: datetime = TRENDING_SINCE,
-    with_content: bool = WITH_CONTENT,
-    offset: int = OFFSET,
-    limit: int = LIMIT
+    with_content: bool = WITH_CONTENT,    
+    limit: int = LIMIT,
+    offset: int = OFFSET
 ) -> Optional[list[Bean]]:    
     embedding = db_context.embed_query(q) if q else None
     distance = 1 - acc if q else 0
     return db_context.db.query_trending_beans(
         kind=kind,
         updated=trending_since,
-        categories=categories,
-        regions=regions,
-        entities=entities,
+        # categories=categories,
+        # regions=regions,
+        # entities=entities,
+        tags=tags,
         sources=sources,
         embedding=embedding,
         distance=distance,
-        conditions=UNRESTRICTED_CONTENT if with_content else None,
+        conditions=UNRESTRICTED_CONTENT+PROCESSED_ITEMS if with_content else PROCESSED_ITEMS,
         limit=limit,
         offset=offset,        
         columns=EXTENDED_BEAN_FIELDS if with_content else CORE_BEAN_FIELDS
@@ -314,9 +325,9 @@ async def get_trending_articles(
     description="Retrieves publisher metadata filtered by one or more publisher IDs."
 )
 async def get_publishers(
-    sources: list[str] = Query(..., max_length=MAX_LIMIT, description="List of publisher IDs to search by (case sensitive)."), 
-    offset: int = OFFSET, 
-    limit: int = LIMIT
+    sources: list[str] = Query(..., max_length=MAX_LIMIT, description="List of publisher IDs to search by (case sensitive)."),     
+    limit: int = LIMIT,
+    offset: int = OFFSET,
 ) -> Optional[list[Publisher]]:
     return db_context.db.query_publishers(sources=sources, limit=limit, offset=offset, columns=CORE_PUBLISHER_FIELDS)
 

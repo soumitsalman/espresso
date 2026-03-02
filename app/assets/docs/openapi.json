@@ -279,7 +279,7 @@
             "description": "Type of article to query: 'news', 'blog', or keep it unspecified for both."
           },
           {
-            "name": "categories",
+            "name": "tags",
             "in": "query",
             "required": false,
             "schema": {
@@ -288,40 +288,13 @@
                 "type": "string"
               },
               "maxItems": 100,
-              "description": "Filters articles by one or more categories (case sensitive). Used for faster keyword search.",
-              "title": "Categories"
+              "description": "Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters.",
+              "examples": [
+                "[\"Artificial Intelligence\", \"UK\", \"saudi-arabia\", \"Elon-Musk\", \"#data-protection\"]"
+              ],
+              "title": "Tags"
             },
-            "description": "Filters articles by one or more categories (case sensitive). Used for faster keyword search."
-          },
-          {
-            "name": "entities",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 100,
-              "description": "Filters articles by one or more named entities (case sensitive). Used for faster keyword search.",
-              "title": "Entities"
-            },
-            "description": "Filters articles by one or more named entities (case sensitive). Used for faster keyword search."
-          },
-          {
-            "name": "regions",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 100,
-              "description": "Filters articles by one or more regions (case sensitive). Used for faster keyword search.",
-              "title": "Regions"
-            },
-            "description": "Filters articles by one or more regions (case sensitive). Used for faster keyword search."
+            "description": "Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters."
           },
           {
             "name": "sources",
@@ -472,9 +445,8 @@
               "title": "Kind"
             },
             "description": "Type of article to query: 'news', 'blog', or keep it unspecified for both."
-          },
-          {
-            "name": "categories",
+          },{
+            "name": "tags",
             "in": "query",
             "required": false,
             "schema": {
@@ -483,40 +455,13 @@
                 "type": "string"
               },
               "maxItems": 100,
-              "description": "Filters articles by one or more categories (case sensitive). Used for faster keyword search.",
-              "title": "Categories"
+              "description": "Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters.",
+              "examples": [
+                "[\"Artificial Intelligence\", \"UK\", \"saudi-arabia\", \"Elon-Musk\", \"#data-protection\"]"
+              ],
+              "title": "Tags"
             },
-            "description": "Filters articles by one or more categories (case sensitive). Used for faster keyword search."
-          },
-          {
-            "name": "entities",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 100,
-              "description": "Filters articles by one or more named entities (case sensitive). Used for faster keyword search.",
-              "title": "Entities"
-            },
-            "description": "Filters articles by one or more named entities (case sensitive). Used for faster keyword search."
-          },
-          {
-            "name": "regions",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 100,
-              "description": "Filters articles by one or more regions (case sensitive). Used for faster keyword search.",
-              "title": "Regions"
-            },
-            "description": "Filters articles by one or more regions (case sensitive). Used for faster keyword search."
+            "description": "Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters."
           },
           {
             "name": "sources",
