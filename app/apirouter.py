@@ -47,7 +47,7 @@ SEARCH_TYPE = Query(
 ACCURACY = Query(
     default=DEFAULT_ACCURACY, 
     ge=0, le=1,
-    description="""Cosine similarity score for vector search. Includes articles with a cosine similarity score >= accuracy in search result. The higher the accuracy the stricter the filter, meaning less items will be returned. `accuracy=1` means only exactly identical articles, `accuracy=0` means all articles regardless of similarity will be returned."""
+    description="""Cosine similarity score for vector search. Includes articles with a `cosine_similarity_score >= accuracy` in search result. The higher the accuracy the stricter the filter, meaning less items will be returned. `accuracy=1` means only exactly identical articles, `accuracy=0` means all articles regardless of similarity will be returned."""
 )
 URL = Query(
     ..., 
@@ -56,7 +56,7 @@ URL = Query(
 )
 KIND = Query(
     default=None, 
-    description="Type of article to query: 'news', 'blog', or keep it unspecified for both."
+    description="Type of article to query: `news`, `blog`, or keep it unspecified for both."
 )
 CATEGORIES = Query(
     max_length=MAX_LIMIT, 
@@ -76,7 +76,7 @@ REGIONS = Query(
 TAGS = Query(
     max_length=MAX_LIMIT, 
     default=None, 
-    description="Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so 'Data Protection', 'data PRotecTION', 'data-protection',  and '#data-protection' are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters.",
+    description="Filters articles by one or more tags (combining categories, regions, and entities). Ignores case and non-alphanumeric characters, so `Data Protection`, `data PRotecTION`, `data-protection`,  and `#data-protection` are treated identically. All specified tags must match for an item to be included in results. Provides a fuzzier, more fault-tolerant alternative to case-sensitive category, region, and entity filters.",
     examples=["""["Artificial Intelligence", "UK", "saudi-arabia", "Elon-Musk", "#data-protection"]"""]
 )
 SOURCES = Query(
